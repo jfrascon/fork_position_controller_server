@@ -1,0 +1,20 @@
+# Desired absolute fork position.
+float64 position
+---
+# True when the server reached the requested target position within its configured tolerance.
+bool success
+
+# Last measured fork position known by the server when the goal reached one terminal state.
+float64 final_position
+
+# Human-readable explanation of the terminal state.
+string message
+---
+# Requested absolute target position associated with this feedback message.
+float64 target_position
+
+# Latest measured fork position associated with this feedback message.
+float64 current_position
+
+# Signed position error computed as target_position - current_position.
+float64 position_error
