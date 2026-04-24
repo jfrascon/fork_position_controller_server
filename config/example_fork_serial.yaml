@@ -12,7 +12,7 @@
     lower_ir_value: 0.1
     upper_ir_value: 0.3
     convergence_threshold: 0.01
-    execution_loop_frecuency: 10.0
+    execution_loop_frequency: 10.0
     low_pass_filter_coeff: 0.10
     joint_name: robot_fork_carriage_joint
     command_topic: joint_commands/fork

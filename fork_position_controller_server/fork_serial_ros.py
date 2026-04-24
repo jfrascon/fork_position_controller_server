@@ -56,11 +56,11 @@ class ForkSerialNode(Node):
         self.declare_parameter('upper_limit', 0.2)
         self.declare_parameter('lower_ir_value', 0.1)
         self.declare_parameter('upper_ir_value', 0.3)
-        self.declare_parameter('convergence_threshold', 0.03)
-        self.declare_parameter('execution_loop_frecuency', 2.0)
+        self.declare_parameter('convergence_threshold', 0.01)
+        self.declare_parameter('execution_loop_frequency', 10.0)
         self.declare_parameter('low_pass_filter_coeff', 0.10)
-        self.declare_parameter('joint_name', '')
-        self.declare_parameter('command_topic', 'fork_command')
+        self.declare_parameter('joint_name', 'robot_fork_carriage_joint')
+        self.declare_parameter('command_topic', 'joint_commands/fork')
         self.declare_parameter('joint_states_topic', 'joint_states')
         # self.declare_parameter('position_topic', 'fork_position')
         # self.declare_parameter('sensor_value_topic', 'fork_sensor_value')
@@ -131,16 +131,16 @@ class ForkSerialNode(Node):
         # self._position_publisher = self.create_publisher(Float64, position_topic, 10)
         # self._sensor_value_publisher = self.create_publisher(Int32, sensor_value_topic, 10)
 
-        # Frecuency at which to update the serial connection and publish the sensor value and position.
-        execution_loop_frecuency = self.get_parameter('execution_loop_frecuency').get_parameter_value().double_value
+        # Frequency at which to update the serial connection and publish the sensor value and position.
+        execution_loop_frequency = self.get_parameter('execution_loop_frequency').get_parameter_value().double_value
 
-        if execution_loop_frecuency <= 0.0:
-            raise ValueError('Parameter execution_loop_frecuency must be greater than 0.0 Hz.')
+        if execution_loop_frequency <= 0.0:
+            raise ValueError('Parameter execution_loop_frequency must be greater than 0.0 Hz.')
 
         if self._low_pass_filter_coeff < 0.0 or self._low_pass_filter_coeff > 1.0:
             raise ValueError("Parameter 'low_pass_filter_coeff' must be in the inclusive range [0.0, 1.0].")
 
-        self._update_period_s = 1.0 / execution_loop_frecuency
+        self._update_period_s = 1.0 / execution_loop_frequency
         self._timer = self.create_timer(self._update_period_s, self._update)
 
         self.get_logger().get_child('init').info(

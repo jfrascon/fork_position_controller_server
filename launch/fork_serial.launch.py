@@ -18,12 +18,6 @@ def generate_launch_description() -> LaunchDescription:
                 'namespace', default_value='robot', description='namespace where the node is launched'
             ),
             DeclareLaunchArgument(
-                'use_sim_time',
-                default_value='False',
-                choices=['True', 'true', 'False', 'false'],
-                description='Use simulation clock if true',
-            ),
-            DeclareLaunchArgument(
                 'params_file',
                 default_value=os.path.join(
                     get_package_share_directory('fork_position_controller_server'),
@@ -31,6 +25,12 @@ def generate_launch_description() -> LaunchDescription:
                     'example_fork_serial.yaml',
                 ),
                 description='YAML file with node parameters',
+            ),
+            DeclareLaunchArgument(
+                'use_sim_time',
+                default_value='False',
+                choices=['True', 'true', 'False', 'false'],
+                description='Use simulation clock if true',
             ),
             DeclareLaunchArgument(
                 'port', default_value='', description='Serial device path. If empty, use the value from params_file.'
@@ -86,7 +86,7 @@ def generate_launch_description() -> LaunchDescription:
                 'If empty, use the value from params_file.',
             ),
             DeclareLaunchArgument(
-                'execution_loop_frecuency',
+                'execution_loop_frequency',
                 default_value='',
                 description='Rate in Hz used by the timer that updates the serial connection. '
                 'If empty, use the value from params_file.',
@@ -147,7 +147,7 @@ def launch_fork_serial_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]
     lower_ir_value = LaunchConfiguration('lower_ir_value').perform(ctx)
     upper_ir_value = LaunchConfiguration('upper_ir_value').perform(ctx)
     convergence_threshold = LaunchConfiguration('convergence_threshold').perform(ctx)
-    execution_loop_frecuency = LaunchConfiguration('execution_loop_frecuency').perform(ctx)
+    execution_loop_frequency = LaunchConfiguration('execution_loop_frequency').perform(ctx)
     low_pass_filter_coeff = LaunchConfiguration('low_pass_filter_coeff').perform(ctx)
     joint_name = LaunchConfiguration('joint_name').perform(ctx)
     command_topic = LaunchConfiguration('command_topic').perform(ctx)
@@ -219,12 +219,12 @@ def launch_fork_serial_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]
                 f"Invalid value for convergence_threshold: '{convergence_threshold}'. Expected a float."
             ) from exc
 
-    if execution_loop_frecuency:
+    if execution_loop_frequency:
         try:
-            parameters.append({'execution_loop_frecuency': float(execution_loop_frecuency)})
+            parameters.append({'execution_loop_frequency': float(execution_loop_frequency)})
         except ValueError as exc:
             raise ValueError(
-                f"Invalid value for execution_loop_frecuency: '{execution_loop_frecuency}'. Expected a float."
+                f"Invalid value for execution_loop_frequency: '{execution_loop_frequency}'. Expected a float."
             ) from exc
 
     if low_pass_filter_coeff:
