@@ -19,7 +19,9 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'params_file',
                 default_value=os.path.join(
-                    get_package_share_directory('fork_position_controller_server'), 'config', 'example_params.yaml'
+                    get_package_share_directory('fork_position_controller_server'),
+                    'config',
+                    'example_fork_position_controller_server.yaml',
                 ),
                 description='YAML file with node parameters',
             ),
@@ -33,7 +35,7 @@ def generate_launch_description():
                 'command_topic', default_value='', description='Topic to subscribe for fork position commands'
             ),
             DeclareLaunchArgument(
-                'joint_state_topic', default_value='', description='Topic to subscribe for joint states'
+                'joint_states_topic', default_value='', description='Topic to subscribe for joint states'
             ),
             DeclareLaunchArgument('joint_name', default_value='', description='Name of the joint to control'),
             DeclareLaunchArgument('lower_limit', default_value='', description='Lower limit of the joint'),
@@ -78,7 +80,7 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
 
     params_file = LaunchConfiguration('params_file').perform(ctx).strip()
     commands_topic = LaunchConfiguration('command_topic').perform(ctx).strip()
-    joint_state_topic = LaunchConfiguration('joint_state_topic').perform(ctx).strip()
+    joint_states_topic = LaunchConfiguration('joint_states_topic').perform(ctx).strip()
     joint_name = LaunchConfiguration('joint_name').perform(ctx).strip()
     lower_limit = LaunchConfiguration('lower_limit').perform(ctx).strip()
     upper_limit = LaunchConfiguration('upper_limit').perform(ctx).strip()
@@ -100,8 +102,8 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
     if commands_topic:
         parameters.append({'command_topic': commands_topic})
 
-    if joint_state_topic:
-        parameters.append({'joint_state_topic': joint_state_topic})
+    if joint_states_topic:
+        parameters.append({'joint_states_topic': joint_states_topic})
 
     if joint_name:
         parameters.append({'joint_name': joint_name})

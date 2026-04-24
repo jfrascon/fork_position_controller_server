@@ -6,11 +6,14 @@ if(NOT CMAKE_CXX_STANDARD)
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+
+ament_python_install_package(${PROJECT_NAME})
 
 rosidl_generate_interfaces(${PROJECT_NAME} action/ForkPosition.action)
 
@@ -69,6 +72,10 @@ target_include_directories(
 install(DIRECTORY include/ DESTINATION include/)
 install(DIRECTORY launch/ DESTINATION share/${PROJECT_NAME}/launch)
 install(DIRECTORY config/ DESTINATION share/${PROJECT_NAME}/config)
+install(
+  PROGRAMS fork_position_controller_server/fork_serial_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME fork_serial_node)
 
 install(
   TARGETS ${PROJECT_NAME}_nodes
