@@ -104,7 +104,7 @@ namespace fork_position_controller_server
     /**
      * @brief Timer callback that publishes the current command position continuously.
      *
-     * This callback runs at command_publish_frequency and reads pos_cmd_ (protected by mutex).
+     * This callback runs at command_publication_frequency and reads pos_cmd_ (protected by mutex).
      * If pos_cmd_ is NaN, nothing is published. Otherwise, it publishes the commanded position
      * to the backend topic. This ensures continuous publication even after execute() terminates.
      */
@@ -122,7 +122,7 @@ namespace fork_position_controller_server
     /** @brief Publisher for backend position commands. */
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr command_pub_;
 
-    /** @brief Timer that publishes position commands at command_publish_frequency. */
+    /** @brief Timer that publishes position commands at command_publication_frequency. */
     rclcpp::TimerBase::SharedPtr pos_cmd_timer_;
 
     /** @brief Subscription to JointState messages. */
@@ -163,7 +163,7 @@ namespace fork_position_controller_server
      *
      * Protected by mutex_. Written by execute() thread, read by pos_cmd_timer_cb().
      * NaN indicates no active goal or no command to publish. Valid values are published
-     * continuously at command_publish_frequency to hold the fork position.
+     * continuously at command_publication_frequency to hold the fork position.
      */
     double pos_cmd_{std::numeric_limits<double>::quiet_NaN()};
 
@@ -171,10 +171,10 @@ namespace fork_position_controller_server
     double position_tolerance_{0.0};
 
     /** @brief Rate of command publication in Hertz. */
-    double command_publish_frequency_{0.0};
+    double command_publication_frequency_{0.0};
 
     /** @brief Rate of action feedback publication in Hertz. */
-    double feedback_publish_frequency_{0.0};
+    double feedback_publication_frequency_{0.0};
 
     /** @brief Rate of the execution loop (convergence checks, cancellation, timeouts) in Hertz. */
     double execution_loop_frequency_{0.0};

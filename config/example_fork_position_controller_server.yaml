@@ -2,7 +2,33 @@
 # ParameterFile(<params_file>, allow_substs=True) in a launch file
 /**/fork_position_controller_server:
   ros__parameters:
-    # use_sim_time IS automatically handled, no need to specify here.
+    use_sim_time: $(var use_sim_time)
+
+    # These limits must match the fork joint limits configured in the robot xacro/URDF.
+    lower_limit: 0.0
+    upper_limit: 0.2
+
+    # Goal succeeds when the measured position is within this absolute tolerance from the target.
+    position_tolerance: 0.01
+
+    # Rate at which the current position command is continuously published to the backend.
+    command_publication_frequency: 10.0 # Hz
+
+    # Rate at which the action server publishes feedback while a goal is active.
+    feedback_publication_frequency: 10.0 # Hz
+
+    # Rate at which the execution loop runs (convergence checks, cancellation, timeouts).
+    # Must be >= max(command_publication_frequency, feedback_publication_frequency).
+    execution_loop_frequency: 30.0 # Hz
+
+    # Abort the goal if convergence is not achieved before this timeout expires.
+    goal_timeout: 10.0 # s
+
+    # Abort the goal if the measured JointState becomes too old.
+    joint_state_timeout: 1.0 # s
+
+    # This must match exactly the entry published in JointState.name.
+    joint_name: robot_fork_carriage_joint
 
     # Position command topic.
     command_topic: joint_commands/fork
@@ -10,28 +36,3 @@
     # JointState topic used to read the measured fork position.
     joint_states_topic: joint_states
 
-    # This must match exactly the entry published in JointState.name.
-    joint_name: robot_fork_carriage_joint
-
-    # These limits must match the fork joint limits configured in the robot xacro/URDF.
-    lower_limit: -0.005
-    upper_limit: 0.8
-
-    # Goal succeeds when the measured position is within this absolute tolerance from the target.
-    position_tolerance: 0.01
-
-    # Rate at which the current position command is continuously published to the backend.
-    command_publish_frequency: 10.0 # Hz
-
-    # Rate at which the action server publishes feedback while a goal is active.
-    feedback_publish_frequency: 10.0 # Hz
-
-    # Rate at which the execution loop runs (convergence checks, cancellation, timeouts).
-    # Must be >= max(command_publish_frequency, feedback_publish_frequency).
-    execution_loop_frequency: 30.0 # Hz
-
-    # Abort the goal if convergence is not achieved before this timeout expires.
-    goal_timeout: 20.0 # s
-
-    # Abort the goal if the measured JointState becomes too old.
-    joint_state_timeout: 1.0 # s

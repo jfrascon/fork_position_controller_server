@@ -31,23 +31,25 @@ def generate_launch_description():
                 choices=['True', 'true', 'False', 'false'],
                 description='Use simulation clock if true',
             ),
-            DeclareLaunchArgument(
-                'command_topic', default_value='', description='Topic to subscribe for fork position commands'
-            ),
-            DeclareLaunchArgument(
-                'joint_states_topic', default_value='', description='Topic to subscribe for joint states'
-            ),
-            DeclareLaunchArgument('joint_name', default_value='', description='Name of the joint to control'),
             DeclareLaunchArgument('lower_limit', default_value='', description='Lower limit of the joint'),
             DeclareLaunchArgument('upper_limit', default_value='', description='Upper limit of the joint'),
             DeclareLaunchArgument(
                 'position_tolerance', default_value='', description='Position tolerance for the controller'
             ),
             DeclareLaunchArgument(
-                'command_publish_frequency', default_value='', description='Frequency to publish the command topic'
+                'command_publication_frequency',
+                default_value='',
+                description='Frequency to publish the command topic',
             ),
             DeclareLaunchArgument(
-                'feedback_publish_frequency', default_value='', description='Frequency to publish the feedback topic'
+                'feedback_publication_frequency',
+                default_value='',
+                description='Frequency to publish the feedback topic',
+            ),
+            DeclareLaunchArgument(
+                'execution_loop_frequency',
+                default_value='',
+                description='Frequency of the execution loop',
             ),
             DeclareLaunchArgument(
                 'goal_timeout', default_value='', description='Timeout for the goal to be considered failed'
@@ -56,6 +58,13 @@ def generate_launch_description():
                 'joint_state_timeout',
                 default_value='',
                 description='Timeout for the joint state to be considered stale',
+            ),
+            DeclareLaunchArgument('joint_name', default_value='', description='Name of the joint to control'),
+            DeclareLaunchArgument(
+                'command_topic', default_value='', description='Topic to subscribe for fork position commands'
+            ),
+            DeclareLaunchArgument(
+                'joint_states_topic', default_value='', description='Topic to subscribe for joint states'
             ),
             DeclareLaunchArgument(
                 'node_logging_options',
@@ -79,16 +88,17 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
     parameters: List[Any] = []
 
     params_file = LaunchConfiguration('params_file').perform(ctx).strip()
-    commands_topic = LaunchConfiguration('command_topic').perform(ctx).strip()
-    joint_states_topic = LaunchConfiguration('joint_states_topic').perform(ctx).strip()
-    joint_name = LaunchConfiguration('joint_name').perform(ctx).strip()
     lower_limit = LaunchConfiguration('lower_limit').perform(ctx).strip()
     upper_limit = LaunchConfiguration('upper_limit').perform(ctx).strip()
     position_tolerance = LaunchConfiguration('position_tolerance').perform(ctx).strip()
-    command_publish_frequency = LaunchConfiguration('command_publish_frequency').perform(ctx).strip()
-    feedback_publish_frequency = LaunchConfiguration('feedback_publish_frequency').perform(ctx).strip()
+    command_publication_frequency = LaunchConfiguration('command_publication_frequency').perform(ctx).strip()
+    feedback_publication_frequency = LaunchConfiguration('feedback_publication_frequency').perform(ctx).strip()
+    execution_loop_frequency = LaunchConfiguration('execution_loop_frequency').perform(ctx).strip()
     goal_timeout = LaunchConfiguration('goal_timeout').perform(ctx).strip()
     joint_state_timeout = LaunchConfiguration('joint_state_timeout').perform(ctx).strip()
+    joint_name = LaunchConfiguration('joint_name').perform(ctx).strip()
+    commands_topic = LaunchConfiguration('command_topic').perform(ctx).strip()
+    joint_states_topic = LaunchConfiguration('joint_states_topic').perform(ctx).strip()
 
     # Add parameter file only if it's not empty.
     if params_file:
@@ -96,17 +106,6 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
             raise FileNotFoundError(f"Params file '{params_file}' does not exist. ")
 
         parameters.append(ParameterFile(params_file, allow_substs=True))
-
-    parameters.append({'use_sim_time': LaunchConfiguration('use_sim_time')})
-
-    if commands_topic:
-        parameters.append({'command_topic': commands_topic})
-
-    if joint_states_topic:
-        parameters.append({'joint_states_topic': joint_states_topic})
-
-    if joint_name:
-        parameters.append({'joint_name': joint_name})
 
     if lower_limit:
         try:
@@ -126,20 +125,28 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
         except ValueError as exc:
             raise ValueError(f"Invalid value for position_tolerance: '{position_tolerance}'. Must be a float.") from exc
 
-    if command_publish_frequency:
+    if command_publication_frequency:
         try:
-            parameters.append({'command_publish_frequency': float(command_publish_frequency)})
+            parameters.append({'command_publication_frequency': float(command_publication_frequency)})
         except ValueError as exc:
             raise ValueError(
-                f"Invalid value for command_publish_frequency: '{command_publish_frequency}'. Must be a float."
+                f"Invalid value for command_publication_frequency: '{command_publication_frequency}'. Must be a float."
             ) from exc
 
-    if feedback_publish_frequency:
+    if feedback_publication_frequency:
         try:
-            parameters.append({'feedback_publish_frequency': float(feedback_publish_frequency)})
+            parameters.append({'feedback_publication_frequency': float(feedback_publication_frequency)})
         except ValueError as exc:
             raise ValueError(
-                f"Invalid value for feedback_publish_frequency: '{feedback_publish_frequency}'. Must be a float."
+                f"Invalid value for feedback_publication_frequency: '{feedback_publication_frequency}'. Must be a float."
+            ) from exc
+
+    if execution_loop_frequency:
+        try:
+            parameters.append({'execution_loop_frequency': float(execution_loop_frequency)})
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid value for execution_loop_frequency: '{execution_loop_frequency}'. Must be a float."
             ) from exc
 
     if goal_timeout:
@@ -155,6 +162,15 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
             raise ValueError(
                 f"Invalid value for joint_state_timeout: '{joint_state_timeout}'. Must be a float."
             ) from exc
+
+    if joint_name:
+        parameters.append({'joint_name': joint_name})
+
+    if commands_topic:
+        parameters.append({'command_topic': commands_topic})
+
+    if joint_states_topic:
+        parameters.append({'joint_states_topic': joint_states_topic})
 
     parameters.append({'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)})
 

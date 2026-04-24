@@ -44,7 +44,7 @@ namespace fork_position_controller_server
     // Create a timer that publishes position commands at the configured frequency.
     // This ensures continuous publication even after execute() terminates, maintaining
     // the fork in its target/holding position.
-    const auto timer_period = std::chrono::duration<double>(1.0 / command_publish_frequency_);
+    const auto timer_period = std::chrono::duration<double>(1.0 / command_publication_frequency_);
     pos_cmd_timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period),
                                              std::bind(&ForkPositionControllerServer::pos_cmd_timer_cb, this));
   }
@@ -54,29 +54,29 @@ namespace fork_position_controller_server
 
   void ForkPositionControllerServer::declare_and_validate_parameters()
   {
-    this->declare_parameter<std::string>("command_topic", "joint_commands/fork");
-    this->declare_parameter<std::string>("joint_states_topic", "joint_states");
-    this->declare_parameter<std::string>("joint_name");
     this->declare_parameter<double>("lower_limit");
     this->declare_parameter<double>("upper_limit");
     this->declare_parameter<double>("position_tolerance", 0.005);
-    this->declare_parameter<double>("command_publish_frequency", 20.0);
-    this->declare_parameter<double>("feedback_publish_frequency", 10.0);
+    this->declare_parameter<double>("command_publication_frequency", 20.0);
+    this->declare_parameter<double>("feedback_publication_frequency", 10.0);
     this->declare_parameter<double>("execution_loop_frequency", 30.0);
     this->declare_parameter<double>("goal_timeout", 10.0);
     this->declare_parameter<double>("joint_state_timeout", 1.0);
+    this->declare_parameter<std::string>("joint_name");
+    this->declare_parameter<std::string>("command_topic", "joint_commands/fork");
+    this->declare_parameter<std::string>("joint_states_topic", "joint_states");
 
-    command_topic_              = this->get_parameter("command_topic").as_string();
-    joint_states_topic_         = this->get_parameter("joint_states_topic").as_string();
-    joint_name_                 = this->get_parameter("joint_name").as_string();
-    lower_limit_                = this->get_parameter("lower_limit").get_value<double>();
-    upper_limit_                = this->get_parameter("upper_limit").get_value<double>();
-    position_tolerance_         = this->get_parameter("position_tolerance").get_value<double>();
-    command_publish_frequency_  = this->get_parameter("command_publish_frequency").get_value<double>();
-    feedback_publish_frequency_ = this->get_parameter("feedback_publish_frequency").get_value<double>();
-    execution_loop_frequency_   = this->get_parameter("execution_loop_frequency").get_value<double>();
-    goal_timeout_               = this->get_parameter("goal_timeout").get_value<double>();
-    joint_state_timeout_        = this->get_parameter("joint_state_timeout").get_value<double>();
+    command_topic_                  = this->get_parameter("command_topic").as_string();
+    joint_states_topic_             = this->get_parameter("joint_states_topic").as_string();
+    joint_name_                     = this->get_parameter("joint_name").as_string();
+    lower_limit_                    = this->get_parameter("lower_limit").get_value<double>();
+    upper_limit_                    = this->get_parameter("upper_limit").get_value<double>();
+    position_tolerance_             = this->get_parameter("position_tolerance").get_value<double>();
+    command_publication_frequency_  = this->get_parameter("command_publication_frequency").get_value<double>();
+    feedback_publication_frequency_ = this->get_parameter("feedback_publication_frequency").get_value<double>();
+    execution_loop_frequency_       = this->get_parameter("execution_loop_frequency").get_value<double>();
+    goal_timeout_                   = this->get_parameter("goal_timeout").get_value<double>();
+    joint_state_timeout_            = this->get_parameter("joint_state_timeout").get_value<double>();
 
     if(joint_name_.empty())
     {
@@ -103,14 +103,14 @@ namespace fork_position_controller_server
       throw std::invalid_argument("Parameter 'position_tolerance' must be non-negative.");
     }
 
-    if(command_publish_frequency_ <= 0.0)
+    if(command_publication_frequency_ <= 0.0)
     {
-      throw std::invalid_argument("Parameter 'command_publish_frequency' must be positive.");
+      throw std::invalid_argument("Parameter 'command_publication_frequency' must be positive.");
     }
 
-    if(feedback_publish_frequency_ <= 0.0)
+    if(feedback_publication_frequency_ <= 0.0)
     {
-      throw std::invalid_argument("Parameter 'feedback_publish_frequency' must be positive.");
+      throw std::invalid_argument("Parameter 'feedback_publication_frequency' must be positive.");
     }
 
     if(execution_loop_frequency_ <= 0.0)
@@ -118,11 +118,11 @@ namespace fork_position_controller_server
       throw std::invalid_argument("Parameter 'execution_loop_frequency' must be positive.");
     }
 
-    if(execution_loop_frequency_ < std::max(command_publish_frequency_, feedback_publish_frequency_))
+    if(execution_loop_frequency_ < std::max(command_publication_frequency_, feedback_publication_frequency_))
     {
-      throw std::invalid_argument(
-        "Parameter 'execution_loop_frequency' must be greater than or equal to both "
-        "'command_publish_frequency' and 'feedback_publish_frequency' to ensure publication deadlines are met.");
+      throw std::invalid_argument("Parameter 'execution_loop_frequency' must be greater than or equal to both "
+                                  "'command_publication_frequency' and 'feedback_publication_frequency' to ensure "
+                                  "publication deadlines are met.");
     }
 
     if(goal_timeout_ <= 0.0)
@@ -164,7 +164,7 @@ namespace fork_position_controller_server
 
     // Compute the period for feedback publication based on its frequency.
     const auto feedback_period{std::chrono::duration_cast<std::chrono::nanoseconds>(
-      std::chrono::duration<double>(1.0 / feedback_publish_frequency_))};
+      std::chrono::duration<double>(1.0 / feedback_publication_frequency_))};
 
     // The execution loop runs at its own frequency, which is independent of (but must be >= max of)
     // the command and feedback publication rates. This allows for responsive convergence checking,
@@ -313,7 +313,7 @@ namespace fork_position_controller_server
       }
 
       // Update the commanded position for the timer to publish continuously.
-      // The timer (pos_cmd_timer_cb) handles publication at command_publish_frequency.
+      // The timer (pos_cmd_timer_cb) handles publication at command_publication_frequency.
       // Here, we simply update pos_cmd_ at the execution loop frequency, ensuring the timer
       // always publishes the most recent commanded position.
       {
