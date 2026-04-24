@@ -7,15 +7,13 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
+find_package(fork_position_controller_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 ament_python_install_package(${PROJECT_NAME})
-
-rosidl_generate_interfaces(${PROJECT_NAME} action/ForkPosition.action)
 
 add_library(
   ${PROJECT_NAME}_nodes
@@ -29,11 +27,10 @@ target_include_directories(
          $<INSTALL_INTERFACE:include>)
 
 ament_target_dependencies(${PROJECT_NAME}_nodes rclcpp rclcpp_action
-                          sensor_msgs std_msgs)
-
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME}
-                              rosidl_typesupport_cpp)
-target_link_libraries(${PROJECT_NAME}_nodes "${cpp_typesupport_target}")
+                          sensor_msgs std_msgs
+                          fork_position_controller_interfaces)
+target_link_libraries(${PROJECT_NAME}_nodes
+                      ${fork_position_controller_interfaces_TARGETS})
 
 add_executable(fork_position_controller_server_node
                src/fork_position_controller_server_node.cpp)
@@ -87,8 +84,6 @@ install(
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME})
-
-ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

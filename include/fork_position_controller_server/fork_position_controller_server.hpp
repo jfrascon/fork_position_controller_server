@@ -17,7 +17,7 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64.hpp>
 
-#include "fork_position_controller_server/action/fork_position.hpp"
+#include "fork_position_controller_interfaces/action/fork_position.hpp"
 
 namespace fork_position_controller_server
 {
@@ -46,7 +46,7 @@ namespace fork_position_controller_server
   class ForkPositionControllerServer: public rclcpp::Node
   {
     public:
-    using ForkPosition           = fork_position_controller_server::action::ForkPosition;
+    using ForkPosition           = fork_position_controller_interfaces::action::ForkPosition;
     using GoalHandleForkPosition = rclcpp_action::ServerGoalHandle<ForkPosition>;
 
     /**
