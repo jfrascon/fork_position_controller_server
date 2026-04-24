@@ -57,7 +57,7 @@ class ForkSerialNode(Node):
         self.declare_parameter('lower_ir_value', 0.1)
         self.declare_parameter('upper_ir_value', 0.3)
         self.declare_parameter('convergence_threshold', 0.03)
-        self.declare_parameter('update_frequency', 2.0)
+        self.declare_parameter('execution_loop_frecuency', 2.0)
         self.declare_parameter('low_pass_filter_coeff', 0.10)
         self.declare_parameter('joint_name', '')
         self.declare_parameter('command_topic', 'fork_command')
@@ -132,15 +132,15 @@ class ForkSerialNode(Node):
         # self._sensor_value_publisher = self.create_publisher(Int32, sensor_value_topic, 10)
 
         # Frecuency at which to update the serial connection and publish the sensor value and position.
-        update_frequency = self.get_parameter('update_frequency').get_parameter_value().double_value
+        execution_loop_frecuency = self.get_parameter('execution_loop_frecuency').get_parameter_value().double_value
 
-        if update_frequency <= 0.0:
-            raise ValueError('Parameter update_frequency must be greater than 0.0 Hz.')
+        if execution_loop_frecuency <= 0.0:
+            raise ValueError('Parameter execution_loop_frecuency must be greater than 0.0 Hz.')
 
         if self._low_pass_filter_coeff < 0.0 or self._low_pass_filter_coeff > 1.0:
             raise ValueError("Parameter 'low_pass_filter_coeff' must be in the inclusive range [0.0, 1.0].")
 
-        self._update_period_s = 1.0 / update_frequency
+        self._update_period_s = 1.0 / execution_loop_frecuency
         self._timer = self.create_timer(self._update_period_s, self._update)
 
         self.get_logger().get_child('init').info(

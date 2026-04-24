@@ -1,5 +1,6 @@
 /**/fork_serial:
   ros__parameters:
+    use_sim_time: $(var use_sim_time)
     port: /dev/ttyACM0
     baudrate: 9600
     data_bits: 8
@@ -11,10 +12,8 @@
     lower_ir_value: 0.1
     upper_ir_value: 0.3
     convergence_threshold: 0.01
-    update_frequency: 10.0
+    execution_loop_frecuency: 10.0
     low_pass_filter_coeff: 0.10
     joint_name: robot_fork_carriage_joint
-    command_topic: fork_position_cmd
+    command_topic: joint_commands/fork
     joint_states_topic: joint_states
-    # position_topic: fork_position
-    # sensor_value_topic: fork_sensor_value
