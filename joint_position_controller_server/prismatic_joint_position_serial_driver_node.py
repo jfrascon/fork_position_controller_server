@@ -2,15 +2,15 @@
 
 import rclpy
 
-from fork_position_controller_server.fork_serial_ros import ForkSerialNode
+from joint_position_controller_server.prismatic_joint_position_serial_driver import PrismaticJointPositionSerialDriver
 
 
 def main(args: list[str] | None = None) -> None:
     rclpy.init(args=args)
-    node: ForkSerialNode | None = None
+    node: PrismaticJointPositionSerialDriver | None = None
 
     try:
-        node = ForkSerialNode()
+        node = PrismaticJointPositionSerialDriver()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass

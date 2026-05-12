@@ -1,4 +1,4 @@
-#include "fork_position_controller_server/fork_position_controller_client.hpp"
+#include "joint_position_controller_server/joint_position_controller_client.hpp"
 
 #include <chrono>
 #include <exception>
@@ -16,12 +16,12 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
 
-  std::shared_ptr<fork_position_controller_server::ForkPositionControllerClient> node;
+  std::shared_ptr<joint_position_controller_server::JointPositionControllerClient> node;
   int ret{0};
 
   try
   {
-    node = std::make_shared<fork_position_controller_server::ForkPositionControllerClient>();
+    node = std::make_shared<joint_position_controller_server::JointPositionControllerClient>();
 
     if(!node->client()->wait_for_action_server(std::chrono::duration<double>(node->wait_for_server_timeout())))
     {
@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
   }
   catch(const std::exception& ex)
   {
-    const auto logger = node ? node->get_logger() : rclcpp::get_logger("fork_position_controller_client_node");
+    const auto logger = node ? node->get_logger() : rclcpp::get_logger("joint_position_controller_client_node");
     RCLCPP_FATAL(logger, "%s.", ex.what());
     ret = 1;
   }

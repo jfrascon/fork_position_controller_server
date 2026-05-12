@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>fork_position_controller_server</name>
+  <name>joint_position_controller_server</name>
   <version>0.1.0</version>
   <description>
-    Action server and example client to command a fork position through a backend position topic
+    Action server and example client to command a joint position through a backend position topic
   </description>
   <maintainer email="jfrascon@gmail.com">Juan Francisco Rascon Crespo</maintainer>
   <license>Apache-2.0</license>
@@ -11,7 +11,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
 
-  <depend>fork_position_controller_interfaces</depend>
+  <depend>joint_position_controller_interfaces</depend>
   <depend>rclcpp</depend>
   <depend>rclcpp_action</depend>
   <depend>sensor_msgs</depend>

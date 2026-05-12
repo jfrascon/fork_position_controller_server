@@ -9,12 +9,13 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64
 
 
-class ForkSerialNode(Node):
+class PrismaticJointPositionSerialDriver(Node):
     """
-    Class to interface with the serial connection of the fork.
+    Interface with the serial connection of a prismatic joint position driver.
+
     The class reads the sensor value from the serial connection and publishes it to a ROS topic.
     It also subscribes to a ROS topic for the target position and sends commands to the serial
-    connection to move the fork accordingly.
+    connection to move the joint accordingly.
     """
 
     FLOW_CONTROL_NONE: Final[str] = 'none'
@@ -44,7 +45,7 @@ class ForkSerialNode(Node):
     }
 
     def __init__(self) -> None:
-        super().__init__('fork_serial')
+        super().__init__('prismatic_joint_position_serial_driver')
 
         self.declare_parameter('port', '/dev/ttyACM0')
         self.declare_parameter('baudrate', 9600)
@@ -59,11 +60,11 @@ class ForkSerialNode(Node):
         self.declare_parameter('convergence_threshold', 0.01)
         self.declare_parameter('execution_loop_frequency', 10.0)
         self.declare_parameter('low_pass_filter_coeff', 0.10)
-        self.declare_parameter('joint_name', 'robot_fork_carriage_joint')
-        self.declare_parameter('command_topic', 'joint_commands/fork')
+        self.declare_parameter('joint_name', 'joint')
+        self.declare_parameter('command_topic', 'joint_commands/position')
         self.declare_parameter('joint_states_topic', 'joint_states')
-        # self.declare_parameter('position_topic', 'fork_position')
-        # self.declare_parameter('sensor_value_topic', 'fork_sensor_value')
+        # self.declare_parameter('position_topic', 'joint_position')
+        # self.declare_parameter('sensor_value_topic', 'joint_sensor_value')
 
         # ROS encourages using SI units, so we usually use meters, rads, etc. However, the
         # serial communication uses millimeters for the position, so we need to convert the limits
@@ -144,7 +145,7 @@ class ForkSerialNode(Node):
         self._timer = self.create_timer(self._update_period_s, self._update)
 
         self.get_logger().get_child('init').info(
-            f"Updating fork serial connection on '{self._serial.port}' at '{self._serial.baudrate}' baud"
+            f"Updating joint serial connection on '{self._serial.port}' at '{self._serial.baudrate}' baud"
         )
 
     def destroy_node(self) -> bool:
@@ -272,7 +273,7 @@ class ForkSerialNode(Node):
 
         # Transform the sensor value read from the serial port (in mm) to a position (in mm) using
         # a linear mapping based on the configured limits and IR value range.
-        # This allows us to determine how far the fork is from the target position and which command
+        # This allows us to determine how far the joint is from the target position and which command
         # to send to the serial port.
         current_pos_mm = (
             self._ir_value_to_position_slope * (ir_value_mm - self._lower_ir_value_mm) + self._lower_limit_mm
@@ -284,7 +285,7 @@ class ForkSerialNode(Node):
             alpha = self._low_pass_filter_coeff
             self._filtered_current_pos_mm = alpha * current_pos_mm + (1.0 - alpha) * self._filtered_current_pos_mm
 
-        # Publish the measured fork position before any command-processing early returns.
+        # Publish the measured joint position before any command-processing early returns.
         # This keeps the JointState stream alive even when no target command has been received.
         self._publish_joint_state(self._filtered_current_pos_mm)
 
@@ -344,7 +345,7 @@ class ForkSerialNode(Node):
 
         # Send the command to the serial port only if the command is different from the current
         # motor status.
-        # This prevents unnecessary serial writes when the fork is already
+            # This prevents unnecessary serial writes when the joint is already
 
         # The Arduino sketch reads one byte with `Serial.read()`. Do not append a line ending
         # here, because `\n` or `\r` would be consumed as a second command byte.

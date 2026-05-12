@@ -1,10 +1,14 @@
 # Since this parameter file uses variable expansion, it is meant to be use along with an instruction
 # ParameterFile(<params_file>, allow_substs=True) in a launch file
-/**/fork_position_controller_server:
+#
+# This example configures a fork carriage as a prismatic joint. The controller server itself
+# only commands one scalar joint position, so the same node can be used for revolute joints
+# when the limits, command topic, and measured JointState use radians.
+/**/joint_position_controller_server:
   ros__parameters:
     use_sim_time: $(var use_sim_time)
 
-    # These limits must match the fork joint limits configured in the robot xacro/URDF.
+    # These limits must match the controlled joint limits configured in the robot xacro/URDF.
     lower_limit: 0.0
     upper_limit: 0.2
 
@@ -33,6 +37,5 @@
     # Position command topic.
     command_topic: joint_commands/fork
 
-    # JointState topic used to read the measured fork position.
+    # JointState topic used to read the measured joint position.
     joint_states_topic: joint_states
-

@@ -1,4 +1,4 @@
-#include "fork_position_controller_server/fork_position_controller_server.hpp"
+#include "joint_position_controller_server/joint_position_controller_server.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -6,23 +6,23 @@
 #include <stdexcept>
 #include <thread>
 
-namespace fork_position_controller_server
+namespace joint_position_controller_server
 {
-  ForkPositionControllerServer::ForkPositionControllerServer(const rclcpp::NodeOptions& options):
-    rclcpp::Node("fork_position_controller_server", options),
+  JointPositionControllerServer::JointPositionControllerServer(const rclcpp::NodeOptions& options):
+    rclcpp::Node("joint_position_controller_server", options),
     action_server_logger_(this->get_logger().get_child("action_server")),
     joint_state_logger_(this->get_logger().get_child("joint_state_cb"))
   {
     declare_and_validate_parameters();
     create_subs_pubs();
 
-    RCLCPP_INFO(this->get_logger(), "ForkPositionControllerServer node initialized.");
+    RCLCPP_INFO(this->get_logger(), "JointPositionControllerServer node initialized.");
   }
 
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::create_subs_pubs()
+  void JointPositionControllerServer::create_subs_pubs()
   {
     command_pub_ = this->create_publisher<std_msgs::msg::Float64>(command_topic_, 10);
 
@@ -32,27 +32,27 @@ namespace fork_position_controller_server
     joint_states_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
       joint_states_topic_,
       rclcpp::SensorDataQoS(),
-      std::bind(&ForkPositionControllerServer::joint_state_cb, this, std::placeholders::_1));
+      std::bind(&JointPositionControllerServer::joint_state_cb, this, std::placeholders::_1));
 
-    action_server_ = rclcpp_action::create_server<ForkPosition>(
+    action_server_ = rclcpp_action::create_server<JointPosition>(
       this,
       action_name_,
-      std::bind(&ForkPositionControllerServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
-      std::bind(&ForkPositionControllerServer::handle_cancel, this, std::placeholders::_1),
-      std::bind(&ForkPositionControllerServer::handle_accepted, this, std::placeholders::_1));
+      std::bind(&JointPositionControllerServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
+      std::bind(&JointPositionControllerServer::handle_cancel, this, std::placeholders::_1),
+      std::bind(&JointPositionControllerServer::handle_accepted, this, std::placeholders::_1));
 
     // Create a timer that publishes position commands at the configured frequency.
     // This ensures continuous publication even after execute() terminates, maintaining
-    // the fork in its target/holding position.
+    // the joint in its target/holding position.
     const auto timer_period = std::chrono::duration<double>(1.0 / command_publication_frequency_);
     pos_cmd_timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(timer_period),
-                                             std::bind(&ForkPositionControllerServer::pos_cmd_timer_cb, this));
+                                             std::bind(&JointPositionControllerServer::pos_cmd_timer_cb, this));
   }
 
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::declare_and_validate_parameters()
+  void JointPositionControllerServer::declare_and_validate_parameters()
   {
     this->declare_parameter<double>("lower_limit");
     this->declare_parameter<double>("upper_limit");
@@ -63,7 +63,7 @@ namespace fork_position_controller_server
     this->declare_parameter<double>("goal_timeout", 10.0);
     this->declare_parameter<double>("joint_state_timeout", 1.0);
     this->declare_parameter<std::string>("joint_name");
-    this->declare_parameter<std::string>("command_topic", "joint_commands/fork");
+    this->declare_parameter<std::string>("command_topic", "joint_commands/position");
     this->declare_parameter<std::string>("joint_states_topic", "joint_states");
 
     command_topic_                  = this->get_parameter("command_topic").as_string();
@@ -139,7 +139,7 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::pos_cmd_timer_cb()
+  void JointPositionControllerServer::pos_cmd_timer_cb()
   {
     // Read the commanded position under the mutex and publish it.
     // publish_pos_cmd() handles NaN internally (won't publish if NaN).
@@ -155,7 +155,7 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::execute(const std::shared_ptr<GoalHandleForkPosition> goal_handle)
+  void JointPositionControllerServer::execute(const std::shared_ptr<GoalHandleJointPosition> goal_handle)
   {
     const auto target_pos{goal_handle->get_goal()->position};
 
@@ -178,7 +178,7 @@ namespace fork_position_controller_server
     // its first feedback.
     rclcpp::Time last_feedback_time{0, 0, this->get_clock()->get_clock_type()};
 
-    const auto result{std::make_shared<ForkPosition::Result>()};
+    const auto result{std::make_shared<JointPosition::Result>()};
 
     while(rclcpp::ok())
     {
@@ -297,12 +297,12 @@ namespace fork_position_controller_server
       {
         result->success        = true;
         result->final_position = current_pos;
-        result->message        = "Target fork position reached.";
+        result->message        = "Target joint position reached.";
 
         goal_handle->succeed(result);
 
         // Hold at the current position and mark the goal as no longer active.
-        // The timer will continue publishing this position indefinitely, keeping the fork stable.
+        // The timer will continue publishing this position indefinitely, keeping the joint stable.
         {
           std::lock_guard<std::mutex> lock(mutex_);
           pos_cmd_         = current_pos;
@@ -323,7 +323,7 @@ namespace fork_position_controller_server
 
       if((now - last_feedback_time) >= rclcpp::Duration(feedback_period))
       {
-        const auto feedback        = std::make_shared<ForkPosition::Feedback>();
+        const auto feedback        = std::make_shared<JointPosition::Feedback>();
         feedback->target_position  = target_pos;
         feedback->current_position = current_pos;
         feedback->position_error   = target_pos - current_pos;
@@ -341,7 +341,7 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::handle_accepted(const std::shared_ptr<GoalHandleForkPosition> goal_handle)
+  void JointPositionControllerServer::handle_accepted(const std::shared_ptr<GoalHandleJointPosition> goal_handle)
   {
     RCLCPP_INFO(action_server_logger_,
                 "Passing accepted goal %.6f to the execution logic.",
@@ -356,10 +356,10 @@ namespace fork_position_controller_server
     // `execute()` is still running. Without this, a node shutdown while a goal is active would
     // leave the thread with a dangling pointer and cause undefined behavior.
     //
-    // `ForkPositionControllerServer` inherits `std::enable_shared_from_this` through
+    // `JointPositionControllerServer` inherits `std::enable_shared_from_this` through
     // `rclcpp::Node`, so `shared_from_this()` is valid as long as the node was created via
     // `std::make_shared` (which is always the case with rclcpp nodes).
-    auto self = std::static_pointer_cast<ForkPositionControllerServer>(shared_from_this());
+    auto self = std::static_pointer_cast<JointPositionControllerServer>(shared_from_this());
     std::thread{[self, goal_handle]() {
       self->execute(goal_handle);
     }}.detach();
@@ -368,8 +368,8 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  rclcpp_action::CancelResponse ForkPositionControllerServer::handle_cancel(
-    const std::shared_ptr<GoalHandleForkPosition> /*goal_handle*/)
+  rclcpp_action::CancelResponse JointPositionControllerServer::handle_cancel(
+    const std::shared_ptr<GoalHandleJointPosition> /*goal_handle*/)
   {
     // Mark the active goal as canceled so the execute() thread can detect it and terminate early.
     // The execute() thread is responsible for setting has_active_goal_ back to false and calling the appropriate
@@ -381,8 +381,8 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  rclcpp_action::GoalResponse ForkPositionControllerServer::handle_goal(const rclcpp_action::GoalUUID& /*uuid*/,
-                                                                        std::shared_ptr<const ForkPosition::Goal> goal)
+  rclcpp_action::GoalResponse JointPositionControllerServer::handle_goal(const rclcpp_action::GoalUUID& /*uuid*/,
+                                                                        std::shared_ptr<const JointPosition::Goal> goal)
   {
     // If the goal is outside the allowed range, reject it.
     if(goal->position < lower_limit_ || goal->position > upper_limit_)
@@ -433,7 +433,7 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::joint_state_cb(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
+  void JointPositionControllerServer::joint_state_cb(const sensor_msgs::msg::JointState::ConstSharedPtr msg)
   {
     // Find the needed joint in the JointState message by name.
     const auto joint_it = std::find(msg->name.begin(), msg->name.end(), joint_name_);
@@ -484,7 +484,7 @@ namespace fork_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  void ForkPositionControllerServer::publish_pos_cmd(double position)
+  void JointPositionControllerServer::publish_pos_cmd(double position)
   {
     // If posicion is not defined, do not publish it and warn.
     if(std::isnan(position))
@@ -499,4 +499,4 @@ namespace fork_position_controller_server
     command_msg.data = rounded_pos_cmd;
     command_pub_->publish(command_msg);
   }
-}  // namespace fork_position_controller_server
+}  // namespace joint_position_controller_server

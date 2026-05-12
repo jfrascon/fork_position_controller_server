@@ -1,8 +1,8 @@
 #pragma once
 
 /**
- * @file fork_position_controller_client_single_goal_sequential.hpp
- * @brief Sequential single-goal example action client for the fork position controller server.
+ * @file joint_position_controller_client_single_goal_sequential.hpp
+ * @brief Sequential single-goal example action client for the joint position controller server.
  */
 
 #include <future>
@@ -13,9 +13,9 @@
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 
-#include "fork_position_controller_interfaces/action/fork_position.hpp"
+#include "joint_position_controller_interfaces/action/joint_position.hpp"
 
-namespace fork_position_controller_server
+namespace joint_position_controller_server
 {
   /**
    * @brief Example client that keeps at most one client-side goal alive at a time.
@@ -24,17 +24,17 @@ namespace fork_position_controller_server
    * first goal is still active, the client cancels it, waits for the final cancel result, and only
    * then sends the next goal.
    */
-  class ForkPositionControllerClientSingleGoalSequential: public rclcpp::Node
+  class JointPositionControllerClientSingleGoalSequential: public rclcpp::Node
   {
     public:
-    using ForkPosition           = fork_position_controller_interfaces::action::ForkPosition;
-    using GoalHandleForkPosition = rclcpp_action::ClientGoalHandle<ForkPosition>;
+    using JointPosition           = joint_position_controller_interfaces::action::JointPosition;
+    using GoalHandleJointPosition = rclcpp_action::ClientGoalHandle<JointPosition>;
 
     /**
      * @brief Build the sequential single-goal example client node.
      * @param options ROS2 node options.
      */
-    explicit ForkPositionControllerClientSingleGoalSequential(
+    explicit JointPositionControllerClientSingleGoalSequential(
       const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
     /**
@@ -59,7 +59,7 @@ namespace fork_position_controller_server
      * @brief Get the underlying ROS action client.
      * @return Action client shared pointer.
      */
-    rclcpp_action::Client<ForkPosition>::SharedPtr client();
+    rclcpp_action::Client<JointPosition>::SharedPtr client();
 
     /**
      * @brief Start the sequential example flow.
@@ -68,7 +68,7 @@ namespace fork_position_controller_server
 
     private:
     /** @brief Action client used to communicate with the server. */
-    rclcpp_action::Client<ForkPosition>::SharedPtr client_;
+    rclcpp_action::Client<JointPosition>::SharedPtr client_;
 
     /** @brief Timer that triggers the request for the second target. */
     rclcpp::TimerBase::SharedPtr second_goal_timer_;
@@ -89,7 +89,7 @@ namespace fork_position_controller_server
     double wait_for_server_timeout_{0.0};
 
     /** @brief Handle of the goal currently owned by this client. */
-    GoalHandleForkPosition::SharedPtr current_goal_handle_;
+    GoalHandleJointPosition::SharedPtr current_goal_handle_;
 
     /** @brief Human-readable label of the goal currently owned by this client. */
     std::string current_goal_label_;
@@ -116,7 +116,7 @@ namespace fork_position_controller_server
      * @brief Build the send-goal options shared by all requests in this example.
      * @return Action send-goal options.
      */
-    rclcpp_action::Client<ForkPosition>::SendGoalOptions create_send_goal_options();
+    rclcpp_action::Client<JointPosition>::SendGoalOptions create_send_goal_options();
 
     /**
      * @brief Resolve the example completion promise once.
@@ -126,14 +126,14 @@ namespace fork_position_controller_server
 
     /**
      * @brief Request a new target while preserving the sequential single-goal policy.
-     * @param position Requested fork position.
+     * @param position Requested joint position.
      * @param label Human-readable goal label used in logs.
      */
     void request_goal_change(double position, const std::string& label);
 
     /**
      * @brief Send one new goal request because no client-side goal is currently active.
-     * @param position Requested fork position.
+     * @param position Requested joint position.
      * @param label Human-readable goal label used in logs.
      */
     void send_goal(double position, const std::string& label);
@@ -142,20 +142,20 @@ namespace fork_position_controller_server
      * @brief Handle the action server response when one goal request is accepted or rejected.
      * @param goal_handle Goal handle returned by the action client.
      */
-    void goal_response_cb(const GoalHandleForkPosition::SharedPtr& goal_handle);
+    void goal_response_cb(const GoalHandleJointPosition::SharedPtr& goal_handle);
 
     /**
      * @brief Log feedback from the goal currently active in this sequential client.
      * @param goal_handle Goal handle.
      * @param feedback Feedback message.
      */
-    void feedback_cb(GoalHandleForkPosition::SharedPtr goal_handle,
-                     const std::shared_ptr<const ForkPosition::Feedback> feedback);
+    void feedback_cb(GoalHandleJointPosition::SharedPtr goal_handle,
+                     const std::shared_ptr<const JointPosition::Feedback> feedback);
 
     /**
      * @brief Handle the final result of the current goal and continue the sequence if needed.
      * @param result Wrapped action result.
      */
-    void result_cb(const GoalHandleForkPosition::WrappedResult& result);
+    void result_cb(const GoalHandleJointPosition::WrappedResult& result);
   };
-}  // namespace fork_position_controller_server
+}  // namespace joint_position_controller_server

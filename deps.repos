@@ -3,9 +3,9 @@
 # Recommendations:
 #
 repositories:
-    fork_position_controller_interfaces:
+    joint_position_controller_interfaces:
         type: git
-        url: https://github.com/jfrascon/fork_position_controller_interfaces.git
+        url: https://github.com/jfrascon/joint_position_controller_interfaces.git
         version: 000dc48b9d6b32561b9ec983c186cff6e504b9ab
         #exclude: [] # list of repos files inside repository_path to exclude (optional)
     ros2_launch_helpers:

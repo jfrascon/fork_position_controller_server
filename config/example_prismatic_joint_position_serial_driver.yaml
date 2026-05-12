@@ -1,4 +1,8 @@
-/**/fork_serial:
+#
+# This example configures a fork carriage as a prismatic joint driven through a serial
+# connection. The driver maps the joint travel limits to the linear IR sensor values used by
+# the firmware on the other side of the serial port.
+/**/prismatic_joint_position_serial_driver:
   ros__parameters:
     use_sim_time: $(var use_sim_time)
     port: /dev/ttyACM0
@@ -13,7 +17,7 @@
     upper_ir_value: 0.3
     convergence_threshold: 0.01
     execution_loop_frequency: 10.0
-    low_pass_filter_coeff: 0.10
+    low_pass_filter_coeff: 0.50
     joint_name: robot_fork_carriage_joint
     command_topic: joint_commands/fork
     joint_states_topic: joint_states

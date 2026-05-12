@@ -1,8 +1,8 @@
 #pragma once
 
 /**
- * @file fork_position_controller_server.hpp
- * @brief Action server that commands a fork position through a backend topic.
+ * @file joint_position_controller_server.hpp
+ * @brief Action server that commands a joint position through a backend topic.
  */
 
 #include <chrono>
@@ -17,9 +17,9 @@
 #include <sensor_msgs/msg/joint_state.hpp>
 #include <std_msgs/msg/float64.hpp>
 
-#include "fork_position_controller_interfaces/action/fork_position.hpp"
+#include "joint_position_controller_interfaces/action/joint_position.hpp"
 
-namespace fork_position_controller_server
+namespace joint_position_controller_server
 {
   /**
    * @brief Action server that publishes a position command while a goal is active and monitors
@@ -43,18 +43,18 @@ namespace fork_position_controller_server
    * `rclcpp::Node` inherits `std::enable_shared_from_this`, so `shared_from_this()` is always
    * valid here given that the node is owned by a `shared_ptr` (the standard rclcpp usage).
    */
-  class ForkPositionControllerServer: public rclcpp::Node
+  class JointPositionControllerServer: public rclcpp::Node
   {
     public:
-    using ForkPosition           = fork_position_controller_interfaces::action::ForkPosition;
-    using GoalHandleForkPosition = rclcpp_action::ServerGoalHandle<ForkPosition>;
+    using JointPosition           = joint_position_controller_interfaces::action::JointPosition;
+    using GoalHandleJointPosition = rclcpp_action::ServerGoalHandle<JointPosition>;
 
     /**
      * @brief Build the server node.
      * @param options ROS2 node options.
      * @throws std::invalid_argument If parameters are inconsistent.
      */
-    explicit ForkPositionControllerServer(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
+    explicit JointPositionControllerServer(const rclcpp::NodeOptions& options = rclcpp::NodeOptions());
 
     private:
     /**
@@ -71,20 +71,20 @@ namespace fork_position_controller_server
      * @brief Execute one goal until it succeeds, is canceled, or aborts.
      * @param goal_handle Goal handle of the specific goal that this execution thread owns.
      */
-    void execute(const std::shared_ptr<GoalHandleForkPosition> goal_handle);
+    void execute(const std::shared_ptr<GoalHandleJointPosition> goal_handle);
 
     /**
      * @brief Start execution of an accepted goal.
      * @param goal_handle Goal handle.
      */
-    void handle_accepted(const std::shared_ptr<GoalHandleForkPosition> goal_handle);
+    void handle_accepted(const std::shared_ptr<GoalHandleJointPosition> goal_handle);
 
     /**
      * @brief Decide if a goal cancel request should be accepted.
      * @param goal_handle Goal handle.
      * @return ROS2 cancel response.
      */
-    rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleForkPosition> goal_handle);
+    rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleJointPosition> goal_handle);
 
     /**
      * @brief Decide if a goal should be accepted or rejected.
@@ -93,10 +93,10 @@ namespace fork_position_controller_server
      * @return ROS2 goal response.
      */
     rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID& uuid,
-                                            std::shared_ptr<const ForkPosition::Goal> goal);
+                                            std::shared_ptr<const JointPosition::Goal> goal);
 
     /**
-     * @brief Process incoming JointState messages and update the measured fork position.
+     * @brief Process incoming JointState messages and update the measured joint position.
      * @param msg JointState message.
      */
     void joint_state_cb(const sensor_msgs::msg::JointState::ConstSharedPtr msg);
@@ -117,7 +117,7 @@ namespace fork_position_controller_server
     void publish_pos_cmd(double position);
 
     /** @brief Action name exposed by this package. */
-    static constexpr const char* action_name_{"fork_position"};
+    static constexpr const char* action_name_{"joint_position"};
 
     /** @brief Publisher for backend position commands. */
     rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr command_pub_;
@@ -128,8 +128,8 @@ namespace fork_position_controller_server
     /** @brief Subscription to JointState messages. */
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr joint_states_sub_;
 
-    /** @brief Action server that exposes the fork position command interface. */
-    rclcpp_action::Server<ForkPosition>::SharedPtr action_server_;
+    /** @brief Action server that exposes the joint position command interface. */
+    rclcpp_action::Server<JointPosition>::SharedPtr action_server_;
 
     /** @brief Logger used by the action server callbacks. */
     rclcpp::Logger action_server_logger_;
@@ -140,7 +140,7 @@ namespace fork_position_controller_server
     /** @brief Protects all shared runtime state. */
     mutable std::mutex mutex_;
 
-    /** @brief Backend topic used to command the fork position. */
+    /** @brief Backend topic used to command the joint position. */
     std::string command_topic_;
 
     /** @brief Backend topic used to receive the measured joint state. */
@@ -155,7 +155,7 @@ namespace fork_position_controller_server
     /** @brief Upper allowed goal position. */
     double upper_limit_{0.0};
 
-    /** @brief Latest measured fork position received from JointState. */
+    /** @brief Latest measured joint position received from JointState. */
     double current_pos_{0.0};
 
     /**
@@ -163,7 +163,7 @@ namespace fork_position_controller_server
      *
      * Protected by mutex_. Written by execute() thread, read by pos_cmd_timer_cb().
      * NaN indicates no active goal or no command to publish. Valid values are published
-     * continuously at command_publication_frequency to hold the fork position.
+     * continuously at command_publication_frequency to hold the joint position.
      */
     double pos_cmd_{std::numeric_limits<double>::quiet_NaN()};
 
@@ -200,4 +200,4 @@ namespace fork_position_controller_server
      */
     bool has_active_goal_{false};
   };
-}  // namespace fork_position_controller_server
+}  // namespace joint_position_controller_server

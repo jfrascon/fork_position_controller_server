@@ -20,9 +20,9 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'params_file',
                 default_value=os.path.join(
-                    get_package_share_directory('fork_position_controller_server'),
+                    get_package_share_directory('joint_position_controller_server'),
                     'config',
-                    'example_fork_serial.yaml',
+                    'example_prismatic_joint_position_serial_driver.yaml',
                 ),
                 description='YAML file with node parameters',
             ),
@@ -62,12 +62,12 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'lower_limit',
                 default_value='',
-                description='Lower fork position limit. If empty, use the value from params_file.',
+                description='Lower joint position limit. If empty, use the value from params_file.',
             ),
             DeclareLaunchArgument(
                 'upper_limit',
                 default_value='',
-                description='Upper fork position limit. If empty, use the value from params_file.',
+                description='Upper joint position limit. If empty, use the value from params_file.',
             ),
             DeclareLaunchArgument(
                 'lower_ir_value',
@@ -82,7 +82,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'convergence_threshold',
                 default_value='',
-                description='Convergence threshold used to decide when the fork should stop. '
+                description='Convergence threshold used to decide when the joint should stop. '
                 'If empty, use the value from params_file.',
             ),
             DeclareLaunchArgument(
@@ -101,22 +101,22 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument(
                 'command_topic',
                 default_value='',
-                description='Topic used to receive fork target positions as std_msgs/msg/Float64. '
+                description='Topic used to receive joint target positions as std_msgs/msg/Float64. '
                 'If empty, use the value from params_file.',
             ),
             DeclareLaunchArgument(
-                'joint_states_topic', default_value='', description='Topic to publish for the fork joint state'
+                'joint_states_topic', default_value='', description='Topic to publish for the joint state'
             ),
             # DeclareLaunchArgument(
             #     'position_topic',
             #     default_value='',
-            #     description='Topic used to publish the fork position as std_msgs/msg/Float64. '
+            #     description='Topic used to publish the joint position as std_msgs/msg/Float64. '
             #     'If empty, use the value from params_file.',
             # ),
             # DeclareLaunchArgument(
             #     'sensor_value_topic',
             #     default_value='',
-            #     description='Topic used to publish the raw fork sensor value as std_msgs/msg/Int32. '
+            #     description='Topic used to publish the raw joint sensor value as std_msgs/msg/Int32. '
             #     'If empty, use the value from params_file.',
             # ),
             DeclareLaunchArgument(
@@ -127,12 +127,12 @@ def generate_launch_description() -> LaunchDescription:
                 default_value=rlh.default_logging_options_str(),
                 description=rlh.LOGGING_OPTIONS_DESC,
             ),
-            OpaqueFunction(function=launch_fork_serial_node),
+            OpaqueFunction(function=launch_prismatic_joint_position_serial_driver_node),
         ]
     )
 
 
-def launch_fork_serial_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
+def launch_prismatic_joint_position_serial_driver_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
     parameters: List[Any] = []
 
     params_file = LaunchConfiguration('params_file').perform(ctx)
@@ -253,15 +253,15 @@ def launch_fork_serial_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]
     parameters.append({'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)})
 
     node_options = rlh.process_node_options(LaunchConfiguration('node_options').perform(ctx))
-    node_name = str(node_options['name']) or 'fork_serial'
+    node_name = str(node_options['name']) or 'prismatic_joint_position_serial_driver'
 
     if not rlh.is_valid_name(node_name):
         raise RuntimeError(f"The name of the node must be ASCII [A-Za-z0-9_] only: '{node_name}'")
 
     return [
         Node(
-            package='fork_position_controller_server',
-            executable='fork_serial_node',
+            package='joint_position_controller_server',
+            executable='prismatic_joint_position_serial_driver_node',
             namespace=LaunchConfiguration('namespace'),
             name=node_name,
             parameters=parameters,

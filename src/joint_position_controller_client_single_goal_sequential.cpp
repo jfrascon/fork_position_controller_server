@@ -1,9 +1,9 @@
-#include "fork_position_controller_server/fork_position_controller_client_single_goal_sequential.hpp"
+#include "joint_position_controller_server/joint_position_controller_client_single_goal_sequential.hpp"
 
 #include <chrono>
 #include <utility>
 
-namespace fork_position_controller_server
+namespace joint_position_controller_server
 {
   /**
    * @brief Build the sequential single-goal example client and load its parameters.
@@ -12,11 +12,11 @@ namespace fork_position_controller_server
    * goal active at a time, request cancelation before changing target, and send the next goal only
    * after the previous one has already reached a terminal state.
    */
-  ForkPositionControllerClientSingleGoalSequential::ForkPositionControllerClientSingleGoalSequential(
+  JointPositionControllerClientSingleGoalSequential::JointPositionControllerClientSingleGoalSequential(
     const rclcpp::NodeOptions& options):
-    rclcpp::Node("fork_position_controller_client_single_goal_sequential", options)
+    rclcpp::Node("joint_position_controller_client_single_goal_sequential", options)
   {
-    this->declare_parameter<std::string>("action_name", "fork_position");
+    this->declare_parameter<std::string>("action_name", "joint_position");
     this->declare_parameter<double>("first_position", 0.2);
     this->declare_parameter<double>("second_position", 0.05);
     this->declare_parameter<double>("second_goal_delay", 1.0);
@@ -28,7 +28,7 @@ namespace fork_position_controller_server
     second_goal_delay_       = this->get_parameter("second_goal_delay").get_value<double>();
     wait_for_server_timeout_ = this->get_parameter("wait_for_server_timeout").get_value<double>();
 
-    client_            = rclcpp_action::create_client<ForkPosition>(this, action_name_);
+    client_            = rclcpp_action::create_client<JointPosition>(this, action_name_);
     completion_future_ = completion_promise_.get_future().share();
   }
 
@@ -36,7 +36,7 @@ namespace fork_position_controller_server
    * @brief Return the configured action name.
    * @return Action name.
    */
-  const std::string& ForkPositionControllerClientSingleGoalSequential::action_name() const
+  const std::string& JointPositionControllerClientSingleGoalSequential::action_name() const
   {
     return action_name_;
   }
@@ -45,7 +45,7 @@ namespace fork_position_controller_server
    * @brief Return the configured timeout while waiting for the action server.
    * @return Timeout in seconds.
    */
-  double ForkPositionControllerClientSingleGoalSequential::wait_for_server_timeout() const
+  double JointPositionControllerClientSingleGoalSequential::wait_for_server_timeout() const
   {
     return wait_for_server_timeout_;
   }
@@ -54,7 +54,7 @@ namespace fork_position_controller_server
    * @brief Return the completion future consumed by the node executable.
    * @return Shared completion future.
    */
-  std::shared_future<int> ForkPositionControllerClientSingleGoalSequential::completion_future() const
+  std::shared_future<int> JointPositionControllerClientSingleGoalSequential::completion_future() const
   {
     return completion_future_;
   }
@@ -63,8 +63,8 @@ namespace fork_position_controller_server
    * @brief Return the underlying ROS 2 action client.
    * @return Action client shared pointer.
    */
-  rclcpp_action::Client<ForkPositionControllerClientSingleGoalSequential::ForkPosition>::SharedPtr
-    ForkPositionControllerClientSingleGoalSequential::client()
+  rclcpp_action::Client<JointPositionControllerClientSingleGoalSequential::JointPosition>::SharedPtr
+    JointPositionControllerClientSingleGoalSequential::client()
   {
     return client_;
   }
@@ -76,7 +76,7 @@ namespace fork_position_controller_server
    * first goal is still active by then, the client requests cancelation and waits for the cancel
    * result before sending the second goal.
    */
-  void ForkPositionControllerClientSingleGoalSequential::start()
+  void JointPositionControllerClientSingleGoalSequential::start()
   {
     send_goal(first_position_, "first_goal");
 
@@ -93,18 +93,18 @@ namespace fork_position_controller_server
    * @brief Build the callback bundle shared by all sequential requests.
    * @return Action send-goal options.
    */
-  rclcpp_action::Client<ForkPositionControllerClientSingleGoalSequential::ForkPosition>::SendGoalOptions
-    ForkPositionControllerClientSingleGoalSequential::create_send_goal_options()
+  rclcpp_action::Client<JointPositionControllerClientSingleGoalSequential::JointPosition>::SendGoalOptions
+    JointPositionControllerClientSingleGoalSequential::create_send_goal_options()
   {
-    typename rclcpp_action::Client<ForkPosition>::SendGoalOptions options;
-    options.goal_response_callback = std::bind(&ForkPositionControllerClientSingleGoalSequential::goal_response_cb,
+    typename rclcpp_action::Client<JointPosition>::SendGoalOptions options;
+    options.goal_response_callback = std::bind(&JointPositionControllerClientSingleGoalSequential::goal_response_cb,
                                                this,
                                                std::placeholders::_1);
-    options.feedback_callback      = std::bind(&ForkPositionControllerClientSingleGoalSequential::feedback_cb,
+    options.feedback_callback      = std::bind(&JointPositionControllerClientSingleGoalSequential::feedback_cb,
                                                this,
                                                std::placeholders::_1,
                                                std::placeholders::_2);
-    options.result_callback        = std::bind(&ForkPositionControllerClientSingleGoalSequential::result_cb,
+    options.result_callback        = std::bind(&JointPositionControllerClientSingleGoalSequential::result_cb,
                                                this,
                                                std::placeholders::_1);
     return options;
@@ -114,7 +114,7 @@ namespace fork_position_controller_server
    * @brief Resolve the completion promise only once.
    * @param return_code Process return code to expose through completion_future().
    */
-  void ForkPositionControllerClientSingleGoalSequential::complete_once(int return_code)
+  void JointPositionControllerClientSingleGoalSequential::complete_once(int return_code)
   {
     if(completion_reported_)
     {
@@ -127,10 +127,10 @@ namespace fork_position_controller_server
 
   /**
    * @brief Ask for one new target while preserving the one-goal-at-a-time client policy.
-   * @param position Requested fork position.
+   * @param position Requested joint position.
    * @param label Human-readable goal label used in logs.
    */
-  void ForkPositionControllerClientSingleGoalSequential::request_goal_change(double position, const std::string& label)
+  void JointPositionControllerClientSingleGoalSequential::request_goal_change(double position, const std::string& label)
   {
     if(!current_goal_handle_)
     {
@@ -156,12 +156,12 @@ namespace fork_position_controller_server
 
   /**
    * @brief Send one new goal because no other client-side goal is currently active.
-   * @param position Requested fork position.
+   * @param position Requested joint position.
    * @param label Human-readable goal label used in logs.
    */
-  void ForkPositionControllerClientSingleGoalSequential::send_goal(double position, const std::string& label)
+  void JointPositionControllerClientSingleGoalSequential::send_goal(double position, const std::string& label)
   {
-    ForkPosition::Goal goal;
+    JointPosition::Goal goal;
     goal.position = position;
 
     current_goal_label_ = label;
@@ -174,8 +174,8 @@ namespace fork_position_controller_server
    * @brief Report whether the currently requested goal was accepted by the server.
    * @param goal_handle Goal handle returned by the action client.
    */
-  void ForkPositionControllerClientSingleGoalSequential::goal_response_cb(
-    const GoalHandleForkPosition::SharedPtr& goal_handle)
+  void JointPositionControllerClientSingleGoalSequential::goal_response_cb(
+    const GoalHandleJointPosition::SharedPtr& goal_handle)
   {
     if(!goal_handle)
     {
@@ -194,9 +194,9 @@ namespace fork_position_controller_server
    * @param goal_handle Goal handle.
    * @param feedback Feedback message.
    */
-  void ForkPositionControllerClientSingleGoalSequential::feedback_cb(
-    GoalHandleForkPosition::SharedPtr /*goal_handle*/,
-    const std::shared_ptr<const ForkPosition::Feedback> feedback)
+  void JointPositionControllerClientSingleGoalSequential::feedback_cb(
+    GoalHandleJointPosition::SharedPtr /*goal_handle*/,
+    const std::shared_ptr<const JointPosition::Feedback> feedback)
   {
     RCLCPP_INFO(this->get_logger(),
                 "Feedback for '%s': target=%.6f current=%.6f error=%.6f",
@@ -210,7 +210,7 @@ namespace fork_position_controller_server
    * @brief Handle the terminal result of the current goal and continue the sequence if needed.
    * @param result Wrapped action result.
    */
-  void ForkPositionControllerClientSingleGoalSequential::result_cb(const GoalHandleForkPosition::WrappedResult& result)
+  void JointPositionControllerClientSingleGoalSequential::result_cb(const GoalHandleJointPosition::WrappedResult& result)
   {
     const std::string finished_goal_label = current_goal_label_;
 
@@ -268,4 +268,4 @@ namespace fork_position_controller_server
       complete_once(result.code == rclcpp_action::ResultCode::SUCCEEDED ? 0 : 1);
     }
   }
-}  // namespace fork_position_controller_server
+}  // namespace joint_position_controller_server

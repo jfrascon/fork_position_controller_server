@@ -19,9 +19,9 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 'params_file',
                 default_value=os.path.join(
-                    get_package_share_directory('fork_position_controller_server'),
+                    get_package_share_directory('joint_position_controller_server'),
                     'config',
-                    'example_fork_position_controller_server.yaml',
+                    'example_joint_position_controller_server.yaml',
                 ),
                 description='YAML file with node parameters',
             ),
@@ -61,7 +61,7 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument('joint_name', default_value='', description='Name of the joint to control'),
             DeclareLaunchArgument(
-                'command_topic', default_value='', description='Topic to subscribe for fork position commands'
+                'command_topic', default_value='', description='Topic to subscribe for joint position commands'
             ),
             DeclareLaunchArgument(
                 'joint_states_topic', default_value='', description='Topic to subscribe for joint states'
@@ -175,15 +175,15 @@ def launch_server_node(ctx: LaunchContext) -> list[LaunchDescriptionEntity]:
     parameters.append({'use_sim_time': ParameterValue(LaunchConfiguration('use_sim_time'), value_type=bool)})
 
     node_options = rlh.process_node_options(LaunchConfiguration('node_options').perform(ctx))
-    node_name = str(node_options['name']) or 'fork_position_controller_server'
+    node_name = str(node_options['name']) or 'joint_position_controller_server'
 
     if not rlh.is_valid_name(node_name):
         raise RuntimeError(f"The name of the node must be ASCII [A-Za-z0-9_] only: '{node_name}'")
 
     return [
         Node(
-            package='fork_position_controller_server',
-            executable='fork_position_controller_server_node',
+            package='joint_position_controller_server',
+            executable='joint_position_controller_server_node',
             name=node_name,
             namespace=LaunchConfiguration('namespace'),
             parameters=parameters,

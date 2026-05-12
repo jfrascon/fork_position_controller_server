@@ -1,8 +1,8 @@
-#include "fork_position_controller_server/fork_position_controller_client.hpp"
+#include "joint_position_controller_server/joint_position_controller_client.hpp"
 
 #include <chrono>
 
-namespace fork_position_controller_server
+namespace joint_position_controller_server
 {
   /**
    * @brief Build the single-goal example client and load its parameters.
@@ -10,10 +10,10 @@ namespace fork_position_controller_server
    * The node keeps the client-side flow intentionally simple: it sends one goal, keeps logging the
    * feedback of that goal, and waits for its terminal result.
    */
-  ForkPositionControllerClient::ForkPositionControllerClient(const rclcpp::NodeOptions& options):
-    rclcpp::Node("fork_position_controller_client", options)
+  JointPositionControllerClient::JointPositionControllerClient(const rclcpp::NodeOptions& options):
+    rclcpp::Node("joint_position_controller_client", options)
   {
-    this->declare_parameter<std::string>("action_name", "fork_position");
+    this->declare_parameter<std::string>("action_name", "joint_position");
     this->declare_parameter<double>("position", 0.0);
     this->declare_parameter<double>("wait_for_server_timeout", 5.0);
 
@@ -21,16 +21,16 @@ namespace fork_position_controller_server
     position_                = this->get_parameter("position").get_value<double>();
     wait_for_server_timeout_ = this->get_parameter("wait_for_server_timeout").get_value<double>();
 
-    client_ = rclcpp_action::create_client<ForkPosition>(this, action_name_);
+    client_ = rclcpp_action::create_client<JointPosition>(this, action_name_);
   }
 
   /**
    * @brief Convert the configured target position into one action goal message.
    * @return Goal message built from the current node parameters.
    */
-  ForkPositionControllerClient::ForkPosition::Goal ForkPositionControllerClient::goal_from_parameters() const
+  JointPositionControllerClient::JointPosition::Goal JointPositionControllerClient::goal_from_parameters() const
   {
-    ForkPosition::Goal goal;
+    JointPosition::Goal goal;
     goal.position = position_;
     return goal;
   }
@@ -39,7 +39,7 @@ namespace fork_position_controller_server
    * @brief Return the action name that this example client uses.
    * @return Action name.
    */
-  const std::string& ForkPositionControllerClient::action_name() const
+  const std::string& JointPositionControllerClient::action_name() const
   {
     return action_name_;
   }
@@ -48,7 +48,7 @@ namespace fork_position_controller_server
    * @brief Return the server wait timeout configured for this example client.
    * @return Timeout in seconds.
    */
-  double ForkPositionControllerClient::wait_for_server_timeout() const
+  double JointPositionControllerClient::wait_for_server_timeout() const
   {
     return wait_for_server_timeout_;
   }
@@ -57,18 +57,18 @@ namespace fork_position_controller_server
    * @brief Build the callback bundle used for the single-goal action request.
    * @return Action send-goal options.
    */
-  typename rclcpp_action::Client<ForkPositionControllerClient::ForkPosition>::SendGoalOptions
-    ForkPositionControllerClient::create_send_goal_options()
+  typename rclcpp_action::Client<JointPositionControllerClient::JointPosition>::SendGoalOptions
+    JointPositionControllerClient::create_send_goal_options()
   {
-    typename rclcpp_action::Client<ForkPosition>::SendGoalOptions options;
-    options.goal_response_callback = std::bind(&ForkPositionControllerClient::goal_response_cb,
+    typename rclcpp_action::Client<JointPosition>::SendGoalOptions options;
+    options.goal_response_callback = std::bind(&JointPositionControllerClient::goal_response_cb,
                                                this,
                                                std::placeholders::_1);
-    options.feedback_callback      = std::bind(&ForkPositionControllerClient::feedback_cb,
+    options.feedback_callback      = std::bind(&JointPositionControllerClient::feedback_cb,
                                                this,
                                                std::placeholders::_1,
                                                std::placeholders::_2);
-    options.result_callback        = std::bind(&ForkPositionControllerClient::result_cb, this, std::placeholders::_1);
+    options.result_callback        = std::bind(&JointPositionControllerClient::result_cb, this, std::placeholders::_1);
     return options;
   }
 
@@ -76,7 +76,7 @@ namespace fork_position_controller_server
    * @brief Return the underlying ROS 2 action client.
    * @return Action client shared pointer.
    */
-  rclcpp_action::Client<ForkPositionControllerClient::ForkPosition>::SharedPtr ForkPositionControllerClient::client()
+  rclcpp_action::Client<JointPositionControllerClient::JointPosition>::SharedPtr JointPositionControllerClient::client()
   {
     return client_;
   }
@@ -85,7 +85,7 @@ namespace fork_position_controller_server
    * @brief Report whether the single goal was accepted by the server.
    * @param goal_handle Goal handle returned by the action client.
    */
-  void ForkPositionControllerClient::goal_response_cb(const GoalHandleForkPosition::SharedPtr& goal_handle)
+  void JointPositionControllerClient::goal_response_cb(const GoalHandleJointPosition::SharedPtr& goal_handle)
   {
     if(!goal_handle)
     {
@@ -101,8 +101,8 @@ namespace fork_position_controller_server
    * @param goal_handle Goal handle.
    * @param feedback Feedback message.
    */
-  void ForkPositionControllerClient::feedback_cb(GoalHandleForkPosition::SharedPtr /*goal_handle*/,
-                                                 const std::shared_ptr<const ForkPosition::Feedback> feedback)
+  void JointPositionControllerClient::feedback_cb(GoalHandleJointPosition::SharedPtr /*goal_handle*/,
+                                                 const std::shared_ptr<const JointPosition::Feedback> feedback)
   {
     RCLCPP_INFO(this->get_logger(),
                 "Feedback: target=%.6f current=%.6f error=%.6f",
@@ -115,7 +115,7 @@ namespace fork_position_controller_server
    * @brief Log the terminal result of the only goal managed by this example client.
    * @param result Wrapped action result.
    */
-  void ForkPositionControllerClient::result_cb(const GoalHandleForkPosition::WrappedResult& result)
+  void JointPositionControllerClient::result_cb(const GoalHandleJointPosition::WrappedResult& result)
   {
     // The single-goal example intentionally maps each terminal result code to one log branch so
     // users can see the difference between success, abort, and cancelation.
@@ -150,4 +150,4 @@ namespace fork_position_controller_server
         break;
     }
   }
-}  // namespace fork_position_controller_server
+}  // namespace joint_position_controller_server
