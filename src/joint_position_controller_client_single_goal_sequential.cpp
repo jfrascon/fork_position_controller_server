@@ -1,6 +1,8 @@
 #include "joint_position_controller_server/joint_position_controller_client_single_goal_sequential.hpp"
 
 #include <chrono>
+#include <cmath>
+#include <stdexcept>
 #include <utility>
 
 namespace joint_position_controller_server
@@ -22,13 +24,33 @@ namespace joint_position_controller_server
     this->declare_parameter<double>("second_goal_delay", 1.0);
     this->declare_parameter<double>("wait_for_server_timeout", 5.0);
 
-    action_name_             = this->get_parameter("action_name").as_string();
-    first_position_          = this->get_parameter("first_position").get_value<double>();
-    second_position_         = this->get_parameter("second_position").get_value<double>();
-    second_goal_delay_       = this->get_parameter("second_goal_delay").get_value<double>();
+    action_name_ = this->get_parameter("action_name").as_string();
+    first_position_ = this->get_parameter("first_position").get_value<double>();
+    second_position_ = this->get_parameter("second_position").get_value<double>();
+    second_goal_delay_ = this->get_parameter("second_goal_delay").get_value<double>();
     wait_for_server_timeout_ = this->get_parameter("wait_for_server_timeout").get_value<double>();
 
-    client_            = rclcpp_action::create_client<JointPosition>(this, action_name_);
+    if(action_name_.empty())
+    {
+      throw std::invalid_argument("Parameter 'action_name' must not be empty.");
+    }
+
+    if(!std::isfinite(first_position_) || !std::isfinite(second_position_))
+    {
+      throw std::invalid_argument("Parameters 'first_position' and 'second_position' must be finite.");
+    }
+
+    if(!std::isfinite(second_goal_delay_) || second_goal_delay_ < 0.0)
+    {
+      throw std::invalid_argument("Parameter 'second_goal_delay' must be finite and non-negative.");
+    }
+
+    if(!std::isfinite(wait_for_server_timeout_) || wait_for_server_timeout_ <= 0.0)
+    {
+      throw std::invalid_argument("Parameter 'wait_for_server_timeout' must be finite and positive.");
+    }
+
+    client_ = rclcpp_action::create_client<JointPosition>(this, action_name_);
     completion_future_ = completion_promise_.get_future().share();
   }
 
@@ -80,6 +102,8 @@ namespace joint_position_controller_server
   {
     send_goal(first_position_, "first_goal");
 
+    // The timer models a user changing their mind while the first goal may still be running. It
+    // fires once, cancels itself, and delegates the decision to request_goal_change().
     const auto delay = std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::duration<double>(second_goal_delay_));
 
@@ -100,13 +124,13 @@ namespace joint_position_controller_server
     options.goal_response_callback = std::bind(&JointPositionControllerClientSingleGoalSequential::goal_response_cb,
                                                this,
                                                std::placeholders::_1);
-    options.feedback_callback      = std::bind(&JointPositionControllerClientSingleGoalSequential::feedback_cb,
-                                               this,
-                                               std::placeholders::_1,
-                                               std::placeholders::_2);
-    options.result_callback        = std::bind(&JointPositionControllerClientSingleGoalSequential::result_cb,
-                                               this,
-                                               std::placeholders::_1);
+    options.feedback_callback = std::bind(&JointPositionControllerClientSingleGoalSequential::feedback_cb,
+                                          this,
+                                          std::placeholders::_1,
+                                          std::placeholders::_2);
+    options.result_callback = std::bind(&JointPositionControllerClientSingleGoalSequential::result_cb,
+                                        this,
+                                        std::placeholders::_1);
     return options;
   }
 
@@ -134,13 +158,25 @@ namespace joint_position_controller_server
   {
     if(!current_goal_handle_)
     {
+      // No goal handle means either no goal is active or the previous one already reached a
+      // terminal state. If a goal request is still waiting for the server response, store the next
+      // target and let goal_response_cb() decide when it is safe to send.
+      if(goal_request_in_progress_)
+      {
+        pending_goal_position_ = position;
+        pending_goal_label_ = label;
+        return;
+      }
+
       send_goal(position, label);
       return;
     }
 
     pending_goal_position_ = position;
-    pending_goal_label_    = label;
+    pending_goal_label_ = label;
 
+    // The action protocol is asynchronous. Once a cancel request has been sent, wait for the final
+    // result callback before sending another cancel or a replacement goal.
     if(cancel_in_progress_)
     {
       return;
@@ -161,10 +197,13 @@ namespace joint_position_controller_server
    */
   void JointPositionControllerClientSingleGoalSequential::send_goal(double position, const std::string& label)
   {
+    // Record the label before sending the request because all action callbacks use it for logs.
+    // Those callbacks may arrive later, after request_goal_change() has queued another label.
     JointPosition::Goal goal;
     goal.position = position;
 
     current_goal_label_ = label;
+    goal_request_in_progress_ = true;
 
     RCLCPP_INFO(this->get_logger(), "Sending '%s' with target %.6f.", label.c_str(), position);
     client_->async_send_goal(goal, create_send_goal_options());
@@ -177,16 +216,38 @@ namespace joint_position_controller_server
   void JointPositionControllerClientSingleGoalSequential::goal_response_cb(
     const GoalHandleJointPosition::SharedPtr& goal_handle)
   {
+    goal_request_in_progress_ = false;
+
     if(!goal_handle)
     {
       RCLCPP_WARN(this->get_logger(), "Goal '%s' was rejected by the server.", current_goal_label_.c_str());
       current_goal_handle_.reset();
+
+      // A pending goal can exist if the user requested a change while this request was still in
+      // flight. Rejection is terminal for the old request, so the pending goal can now be sent.
+      if(pending_goal_position_.has_value() && pending_goal_label_.has_value())
+      {
+        const double next_position = *pending_goal_position_;
+        const auto next_label = *pending_goal_label_;
+        pending_goal_position_.reset();
+        pending_goal_label_.reset();
+        send_goal(next_position, next_label);
+        return;
+      }
+
       complete_once(1);
       return;
     }
 
     current_goal_handle_ = goal_handle;
     RCLCPP_INFO(this->get_logger(), "Goal '%s' accepted by the server.", current_goal_label_.c_str());
+
+    // If a newer target was queued while waiting for acceptance, request cancellation immediately.
+    // This preserves the invariant that the client never keeps two accepted goals alive at once.
+    if(pending_goal_position_.has_value() && pending_goal_label_.has_value())
+    {
+      request_goal_change(*pending_goal_position_, *pending_goal_label_);
+    }
   }
 
   /**
@@ -210,7 +271,8 @@ namespace joint_position_controller_server
    * @brief Handle the terminal result of the current goal and continue the sequence if needed.
    * @param result Wrapped action result.
    */
-  void JointPositionControllerClientSingleGoalSequential::result_cb(const GoalHandleJointPosition::WrappedResult& result)
+  void JointPositionControllerClientSingleGoalSequential::result_cb(
+    const GoalHandleJointPosition::WrappedResult& result)
   {
     const std::string finished_goal_label = current_goal_label_;
 
@@ -256,7 +318,7 @@ namespace joint_position_controller_server
     if(pending_goal_position_.has_value() && pending_goal_label_.has_value())
     {
       const double next_position = *pending_goal_position_;
-      const auto next_label      = *pending_goal_label_;
+      const auto next_label = *pending_goal_label_;
       pending_goal_position_.reset();
       pending_goal_label_.reset();
       send_goal(next_position, next_label);

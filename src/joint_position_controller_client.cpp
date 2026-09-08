@@ -1,6 +1,8 @@
 #include "joint_position_controller_server/joint_position_controller_client.hpp"
 
 #include <chrono>
+#include <cmath>
+#include <stdexcept>
 
 namespace joint_position_controller_server
 {
@@ -17,9 +19,24 @@ namespace joint_position_controller_server
     this->declare_parameter<double>("position", 0.0);
     this->declare_parameter<double>("wait_for_server_timeout", 5.0);
 
-    action_name_             = this->get_parameter("action_name").as_string();
-    position_                = this->get_parameter("position").get_value<double>();
+    action_name_ = this->get_parameter("action_name").as_string();
+    position_ = this->get_parameter("position").get_value<double>();
     wait_for_server_timeout_ = this->get_parameter("wait_for_server_timeout").get_value<double>();
+
+    if(action_name_.empty())
+    {
+      throw std::invalid_argument("Parameter 'action_name' must not be empty.");
+    }
+
+    if(!std::isfinite(position_))
+    {
+      throw std::invalid_argument("Parameter 'position' must be finite.");
+    }
+
+    if(!std::isfinite(wait_for_server_timeout_) || wait_for_server_timeout_ <= 0.0)
+    {
+      throw std::invalid_argument("Parameter 'wait_for_server_timeout' must be finite and positive.");
+    }
 
     client_ = rclcpp_action::create_client<JointPosition>(this, action_name_);
   }
@@ -64,11 +81,11 @@ namespace joint_position_controller_server
     options.goal_response_callback = std::bind(&JointPositionControllerClient::goal_response_cb,
                                                this,
                                                std::placeholders::_1);
-    options.feedback_callback      = std::bind(&JointPositionControllerClient::feedback_cb,
-                                               this,
-                                               std::placeholders::_1,
-                                               std::placeholders::_2);
-    options.result_callback        = std::bind(&JointPositionControllerClient::result_cb, this, std::placeholders::_1);
+    options.feedback_callback = std::bind(&JointPositionControllerClient::feedback_cb,
+                                          this,
+                                          std::placeholders::_1,
+                                          std::placeholders::_2);
+    options.result_callback = std::bind(&JointPositionControllerClient::result_cb, this, std::placeholders::_1);
     return options;
   }
 
@@ -102,7 +119,7 @@ namespace joint_position_controller_server
    * @param feedback Feedback message.
    */
   void JointPositionControllerClient::feedback_cb(GoalHandleJointPosition::SharedPtr /*goal_handle*/,
-                                                 const std::shared_ptr<const JointPosition::Feedback> feedback)
+                                                  const std::shared_ptr<const JointPosition::Feedback> feedback)
   {
     RCLCPP_INFO(this->get_logger(),
                 "Feedback: target=%.6f current=%.6f error=%.6f",

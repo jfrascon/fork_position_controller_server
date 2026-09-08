@@ -2,7 +2,9 @@
 
 import rclpy
 
-from joint_position_controller_server.prismatic_joint_position_serial_driver import PrismaticJointPositionSerialDriver
+from joint_position_controller_server.prismatic_joint_position_serial_driver import (
+    PrismaticJointPositionSerialDriver,
+)
 
 
 def main(args: list[str] | None = None) -> None:

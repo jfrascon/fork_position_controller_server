@@ -1,10 +1,9 @@
-#
 # This example configures a fork carriage as a prismatic joint driven through a serial
-# connection. The driver maps the joint travel limits to the linear IR sensor values used by
-# the firmware on the other side of the serial port.
+# connection.
+# ROS positions and sensor distances use meters.
+# The serial protocol converts both values to millimeters.
 /**/prismatic_joint_position_serial_driver:
   ros__parameters:
-    use_sim_time: $(var use_sim_time)
     port: /dev/ttyACM0
     baudrate: 9600
     data_bits: 8
@@ -13,10 +12,19 @@
     stop_bits: 1.0
     lower_limit: 0.0
     upper_limit: 0.2
+
+    # Sensor distance measured at each corresponding joint limit.
+    # These values may increase or decrease with the joint position, but they must differ.
     lower_ir_value: 0.1
     upper_ir_value: 0.3
+
+    # Stop when the measured position is within this distance of the target.
     convergence_threshold: 0.01
+
+    # Rate used to read serial frames, update commands, and publish JointState messages.
     execution_loop_frequency: 10.0
+
+    # 0.0 keeps the previous filtered position; 1.0 uses only the newest measurement.
     low_pass_filter_coeff: 0.50
     joint_name: robot_fork_carriage_joint
     command_topic: joint_commands/fork

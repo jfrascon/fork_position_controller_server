@@ -1,15 +1,11 @@
-# This is a template for creating a repository file. Replace the placeholders with actual values.
-#
-# Recommendations:
-#
 repositories:
     joint_position_controller_interfaces:
         type: git
         url: https://github.com/jfrascon/joint_position_controller_interfaces.git
-        version: 000dc48b9d6b32561b9ec983c186cff6e504b9ab
+        version: 3bd4822de72fb994c2d893cc11efea757f8a26b1
         #exclude: [] # list of repos files inside repository_path to exclude (optional)
     ros2_launch_helpers:
         type: git
         url: https://github.com/jfrascon/ros2_launch_helpers.git
-        version: ros2
+        version: 62b2b516888238bdf1c80d32f5a73c6c1459002d
         #exclude: [] # list of repos files inside repository_path to exclude (optional)

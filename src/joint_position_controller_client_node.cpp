@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
       executor.add_node(node);
 
       auto goal_options = node->create_send_goal_options();
-      auto goal_future  = node->client()->async_send_goal(node->goal_from_parameters(), goal_options);
+      auto goal_future = node->client()->async_send_goal(node->goal_from_parameters(), goal_options);
 
       if(executor.spin_until_future_complete(goal_future) != rclcpp::FutureReturnCode::SUCCESS)
       {
@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
         if(!goal_handle)
         {
           RCLCPP_WARN(node->get_logger(), "Goal rejected by the action server.");
+          ret = 1;
         }
         else
         {
@@ -62,6 +63,14 @@ int main(int argc, char* argv[])
           {
             RCLCPP_FATAL(node->get_logger(), "Failed to receive the final goal result.");
             ret = 1;
+          }
+          else
+          {
+            const auto result = result_future.get();
+            if(result.code != rclcpp_action::ResultCode::SUCCEEDED || !result.result || !result.result->success)
+            {
+              ret = 1;
+            }
           }
         }
       }

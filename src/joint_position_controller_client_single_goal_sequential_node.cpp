@@ -16,12 +16,13 @@ int main(int argc, char* argv[])
 {
   rclcpp::init(argc, argv);
 
-  std::shared_ptr<joint_position_controller_server::JointPositionControllerClientSingleGoalSequential> node;
+  using SequentialClient = joint_position_controller_server::JointPositionControllerClientSingleGoalSequential;
+  std::shared_ptr<SequentialClient> node;
   int ret{0};
 
   try
   {
-    node = std::make_shared<joint_position_controller_server::JointPositionControllerClientSingleGoalSequential>();
+    node = std::make_shared<SequentialClient>();
 
     if(!node->client()->wait_for_action_server(std::chrono::duration<double>(node->wait_for_server_timeout())))
     {

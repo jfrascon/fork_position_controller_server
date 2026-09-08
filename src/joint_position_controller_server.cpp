@@ -1,6 +1,7 @@
 #include "joint_position_controller_server/joint_position_controller_server.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -29,17 +30,22 @@ namespace joint_position_controller_server
     // All callbacks (joint_state_cb, handle_goal, handle_cancel, handle_accepted) use the
     // node's default MutuallyExclusive callback group, so no explicit group is needed.
     // Sharing the same MutuallyExclusive group guarantees they never run concurrently.
-    joint_states_sub_ = this->create_subscription<sensor_msgs::msg::JointState>(
-      joint_states_topic_,
-      rclcpp::SensorDataQoS(),
-      std::bind(&JointPositionControllerServer::joint_state_cb, this, std::placeholders::_1));
+    joint_states_sub_ = this->create_subscription<
+      sensor_msgs::msg::JointState>(joint_states_topic_,
+                                    rclcpp::SensorDataQoS(),
+                                    std::bind(&JointPositionControllerServer::joint_state_cb,
+                                              this,
+                                              std::placeholders::_1));
 
-    action_server_ = rclcpp_action::create_server<JointPosition>(
-      this,
-      action_name_,
-      std::bind(&JointPositionControllerServer::handle_goal, this, std::placeholders::_1, std::placeholders::_2),
-      std::bind(&JointPositionControllerServer::handle_cancel, this, std::placeholders::_1),
-      std::bind(&JointPositionControllerServer::handle_accepted, this, std::placeholders::_1));
+    action_server_ = rclcpp_action::create_server<
+      JointPosition>(this,
+                     action_name_,
+                     std::bind(&JointPositionControllerServer::handle_goal,
+                               this,
+                               std::placeholders::_1,
+                               std::placeholders::_2),
+                     std::bind(&JointPositionControllerServer::handle_cancel, this, std::placeholders::_1),
+                     std::bind(&JointPositionControllerServer::handle_accepted, this, std::placeholders::_1));
 
     // Create a timer that publishes position commands at the configured frequency.
     // This ensures continuous publication even after execute() terminates, maintaining
@@ -54,6 +60,10 @@ namespace joint_position_controller_server
 
   void JointPositionControllerServer::declare_and_validate_parameters()
   {
+    // Declare parameters before reading them so launch files can override the backend topics,
+    // joint name, limits, and timing policy through normal ROS 2 parameter injection.
+    // The node intentionally keeps these values fixed after construction. Runtime changes would
+    // need extra synchronization with the action execution thread and command timer.
     this->declare_parameter<double>("lower_limit");
     this->declare_parameter<double>("upper_limit");
     this->declare_parameter<double>("position_tolerance", 0.005);
@@ -66,17 +76,35 @@ namespace joint_position_controller_server
     this->declare_parameter<std::string>("command_topic", "joint_commands/position");
     this->declare_parameter<std::string>("joint_states_topic", "joint_states");
 
-    command_topic_                  = this->get_parameter("command_topic").as_string();
-    joint_states_topic_             = this->get_parameter("joint_states_topic").as_string();
-    joint_name_                     = this->get_parameter("joint_name").as_string();
-    lower_limit_                    = this->get_parameter("lower_limit").get_value<double>();
-    upper_limit_                    = this->get_parameter("upper_limit").get_value<double>();
-    position_tolerance_             = this->get_parameter("position_tolerance").get_value<double>();
-    command_publication_frequency_  = this->get_parameter("command_publication_frequency").get_value<double>();
+    command_topic_ = this->get_parameter("command_topic").as_string();
+    joint_states_topic_ = this->get_parameter("joint_states_topic").as_string();
+    joint_name_ = this->get_parameter("joint_name").as_string();
+    lower_limit_ = this->get_parameter("lower_limit").get_value<double>();
+    upper_limit_ = this->get_parameter("upper_limit").get_value<double>();
+    position_tolerance_ = this->get_parameter("position_tolerance").get_value<double>();
+    command_publication_frequency_ = this->get_parameter("command_publication_frequency").get_value<double>();
     feedback_publication_frequency_ = this->get_parameter("feedback_publication_frequency").get_value<double>();
-    execution_loop_frequency_       = this->get_parameter("execution_loop_frequency").get_value<double>();
-    goal_timeout_                   = this->get_parameter("goal_timeout").get_value<double>();
-    joint_state_timeout_            = this->get_parameter("joint_state_timeout").get_value<double>();
+    execution_loop_frequency_ = this->get_parameter("execution_loop_frequency").get_value<double>();
+    goal_timeout_ = this->get_parameter("goal_timeout").get_value<double>();
+    joint_state_timeout_ = this->get_parameter("joint_state_timeout").get_value<double>();
+
+    // Reject NaN and infinities early. These parameters feed comparisons, timer periods, and
+    // published command values, so accepting a non-finite value would make later checks unreliable.
+    const auto require_finite_parameter = [](double value, const std::string& parameter_name) {
+      if(!std::isfinite(value))
+      {
+        throw std::invalid_argument("Parameter '" + parameter_name + "' must be finite.");
+      }
+    };
+
+    require_finite_parameter(lower_limit_, "lower_limit");
+    require_finite_parameter(upper_limit_, "upper_limit");
+    require_finite_parameter(position_tolerance_, "position_tolerance");
+    require_finite_parameter(command_publication_frequency_, "command_publication_frequency");
+    require_finite_parameter(feedback_publication_frequency_, "feedback_publication_frequency");
+    require_finite_parameter(execution_loop_frequency_, "execution_loop_frequency");
+    require_finite_parameter(goal_timeout_, "goal_timeout");
+    require_finite_parameter(joint_state_timeout_, "joint_state_timeout");
 
     if(joint_name_.empty())
     {
@@ -141,8 +169,11 @@ namespace joint_position_controller_server
 
   void JointPositionControllerServer::pos_cmd_timer_cb()
   {
-    // Read the commanded position under the mutex and publish it.
-    // publish_pos_cmd() handles NaN internally (won't publish if NaN).
+    // Read the commanded position under the mutex and then publish outside the critical section.
+    // This keeps the lock hold time short and avoids calling ROS publisher code while the shared
+    // action state is locked.
+    // publish_pos_cmd() treats NaN as "no active command", so startup and idle periods do not
+    // publish stale or arbitrary positions.
     double cmd;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -159,10 +190,12 @@ namespace joint_position_controller_server
   {
     const auto target_pos{goal_handle->get_goal()->position};
 
-    // Capture the goal start time locally.
+    // Capture the goal start time locally. The timeout is measured against the node clock so it
+    // follows the same time source as the incoming JointState freshness checks.
     const auto goal_start_time{this->now()};
 
-    // Compute the period for feedback publication based on its frequency.
+    // Feedback has its own publication period. It can be slower than the execution loop so clients
+    // get useful progress updates without forcing every convergence check to publish feedback.
     const auto feedback_period{std::chrono::duration_cast<std::chrono::nanoseconds>(
       std::chrono::duration<double>(1.0 / feedback_publication_frequency_))};
 
@@ -195,138 +228,129 @@ namespace joint_position_controller_server
       // on a consistent, stable copy without holding the lock.
       {
         std::lock_guard<std::mutex> lock(mutex_);
-        current_pos           = current_pos_;
-        current_pos_is_valid  = current_pos_is_valid_;
+        current_pos = current_pos_;
+        current_pos_is_valid = current_pos_is_valid_;
         last_joint_state_time = last_joint_state_time_;
       }
 
-      // ERROR CONDITIONS: Check critical error conditions first before processing cancellation or
-      // success. These represent system-level problems that must be detected immediately.
+      // Error conditions are checked before cancellation or success. If the server can no longer
+      // prove what the joint is doing, aborting gives the client a stronger signal than reporting
+      // a clean cancel or a stale success.
 
-      // If the joint state is invalid, we cannot observe the system state or measure convergence,
-      // so abort the goal with an appropriate message. This also prevents the controller from
-      // publishing commands based on an invalid position that could be dangerous.
+      // An invalid joint state prevents safe convergence checks and command publication.
       if(!current_pos_is_valid)
       {
-        result->success        = false;
+        result->success = false;
         result->final_position = std::numeric_limits<double>::quiet_NaN();
-        result->message        = "Goal aborted because the joint state is invalid.";
+        result->message = "Goal aborted because the joint state is invalid.";
 
-        goal_handle->abort(result);
-
-        // Stop publishing commands and mark the goal as no longer active.
+        // Release the internal goal slot before publishing the terminal action result. A terminal
+        // result can trigger client callbacks immediately, and those callbacks may submit another
+        // goal. Clearing the slot first prevents a false "goal already active" rejection.
         {
           std::lock_guard<std::mutex> lock(mutex_);
-          pos_cmd_         = std::numeric_limits<double>::quiet_NaN();
+          pos_cmd_ = std::numeric_limits<double>::quiet_NaN();
           has_active_goal_ = false;
         }
 
+        goal_handle->abort(result);
         return;
       }
 
-      // If the joint state is too old, abort for the same reasons as above but with a different
-      // message to indicate the specific problem.
+      // A stale measurement cannot prove that the joint is following the requested command.
       if((now - last_joint_state_time).seconds() > joint_state_timeout_)
       {
-        result->success        = false;
+        result->success = false;
         result->final_position = current_pos;
-        result->message        = "Goal aborted because the measured joint state is stale.";
+        result->message = "Goal aborted because the measured joint state is stale.";
 
-        goal_handle->abort(result);
-
-        // Hold at the last known position and mark the goal as no longer active.
+        // Keep publishing the last measured position as a holding command after aborting. This is
+        // safer than keeping the unreachable target command when fresh feedback is unavailable.
+        // Clear the active-goal slot before notifying the client, as above.
         {
           std::lock_guard<std::mutex> lock(mutex_);
-          pos_cmd_         = current_pos;
+          pos_cmd_ = current_pos;
           has_active_goal_ = false;
         }
 
+        goal_handle->abort(result);
         return;
       }
 
-      // If the goal has been active for too long without converging, abort with an appropriate
-      // message.
-      // This timeout might be confusing, so an explanation is worth including here:
-      // if the goal is taking a long time to execute, it is likely that something has gone wrong
-      // (e.g., the robot is stuck, the controller is not working, etc.) and it will never converge.
-      // Without this timeout, the goal would run indefinitely and never report failure, which could be
-      // dangerous and would require a manual shutdown to recover from.
-      // By aborting after a reasonable amount of time, we allow the system to recover and try again
-      // instead of getting stuck on a goal that will never succeed.
+      // The goal timeout lets clients recover when a blocked joint never converges.
       if((now - goal_start_time).seconds() > goal_timeout_)
       {
-        result->success        = false;
+        result->success = false;
         result->final_position = current_pos;
-        result->message        = "Goal aborted because it did not converge before goal_timeout.";
+        result->message = "Goal aborted because it did not converge before goal_timeout.";
+
+        // The joint did not reach the target in time. Hold the last measured position instead of
+        // continuing to push the expired target, then free the single-goal slot.
+        {
+          std::lock_guard<std::mutex> lock(mutex_);
+          pos_cmd_ = current_pos;
+          has_active_goal_ = false;
+        }
 
         goal_handle->abort(result);
-
-        // Hold at the current position and mark the goal as no longer active.
-        {
-          std::lock_guard<std::mutex> lock(mutex_);
-          pos_cmd_         = current_pos;
-          has_active_goal_ = false;
-        }
-
         return;
       }
 
-      // CANCELLATION: Check if the client has requested cancellation. This is processed after
-      // error conditions but before success, so critical errors take priority.
+      // Process cancellation after system failures but before reporting convergence.
       if(goal_handle->is_canceling())
       {
-        result->success        = false;
+        result->success = false;
         result->final_position = current_pos;
-        result->message        = "Goal canceled.";
+        result->message = "Goal canceled.";
+
+        // Cancelation stops chasing the target but keeps the last measured position as the hold
+        // command. This leaves the backend in a known state after the action is canceled.
+        {
+          std::lock_guard<std::mutex> lock(mutex_);
+          pos_cmd_ = current_pos;
+          has_active_goal_ = false;
+        }
 
         goal_handle->canceled(result);
-
-        // At this point, we know current_pos_is_valid is true (error checks passed above),
-        // so we can safely hold at current_pos and mark the goal as no longer active.
-        {
-          std::lock_guard<std::mutex> lock(mutex_);
-          pos_cmd_         = current_pos;
-          has_active_goal_ = false;
-        }
-
         return;
       }
 
-      // Convergence check: succeed if the measured position is within tolerance.
+      // Succeed when the measured position is within the configured absolute tolerance.
       if(std::abs(target_pos - current_pos) <= position_tolerance_)
       {
-        result->success        = true;
+        result->success = true;
         result->final_position = current_pos;
-        result->message        = "Target joint position reached.";
+        result->message = "Target joint position reached.";
 
-        goal_handle->succeed(result);
-
-        // Hold at the current position and mark the goal as no longer active.
-        // The timer will continue publishing this position indefinitely, keeping the joint stable.
+        // The timer continues publishing this measured position as the holding command. Use the
+        // measured value instead of the target because it reflects where the joint actually ended.
+        // Release the internal goal slot before publishing the terminal action result.
         {
           std::lock_guard<std::mutex> lock(mutex_);
-          pos_cmd_         = current_pos;
+          pos_cmd_ = current_pos;
           has_active_goal_ = false;
         }
 
+        goal_handle->succeed(result);
         return;
       }
 
-      // Update the commanded position for the timer to publish continuously.
-      // The timer (pos_cmd_timer_cb) handles publication at command_publication_frequency.
-      // Here, we simply update pos_cmd_ at the execution loop frequency, ensuring the timer
-      // always publishes the most recent commanded position.
+      // Update the target used by the independent command-publication timer. The execute loop does
+      // not publish commands directly; it only chooses what the timer should publish. This keeps
+      // command publication frequency stable even when feedback or goal checks take longer.
       {
         std::lock_guard<std::mutex> lock(mutex_);
         pos_cmd_ = target_pos;
       }
 
+      // Publish feedback at its configured rate using the same stable position snapshot used for
+      // convergence checks in this iteration.
       if((now - last_feedback_time) >= rclcpp::Duration(feedback_period))
       {
-        const auto feedback        = std::make_shared<JointPosition::Feedback>();
-        feedback->target_position  = target_pos;
+        const auto feedback = std::make_shared<JointPosition::Feedback>();
+        feedback->target_position = target_pos;
         feedback->current_position = current_pos;
-        feedback->position_error   = target_pos - current_pos;
+        feedback->position_error = target_pos - current_pos;
         goal_handle->publish_feedback(feedback);
         last_feedback_time = now;
       }
@@ -371,9 +395,8 @@ namespace joint_position_controller_server
   rclcpp_action::CancelResponse JointPositionControllerServer::handle_cancel(
     const std::shared_ptr<GoalHandleJointPosition> /*goal_handle*/)
   {
-    // Mark the active goal as canceled so the execute() thread can detect it and terminate early.
-    // The execute() thread is responsible for setting has_active_goal_ back to false and calling the appropriate
-    // goal handle method (canceled() or abort()) to end the goal lifecycle.
+    // Accepting the request moves the goal handle into its canceling state.
+    // The execution thread observes that state and publishes the terminal canceled result.
     RCLCPP_INFO(action_server_logger_, "Received cancel request.");
     return rclcpp_action::CancelResponse::ACCEPT;
   }
@@ -381,10 +404,18 @@ namespace joint_position_controller_server
   //////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////
 
-  rclcpp_action::GoalResponse JointPositionControllerServer::handle_goal(const rclcpp_action::GoalUUID& /*uuid*/,
-                                                                        std::shared_ptr<const JointPosition::Goal> goal)
+  rclcpp_action::GoalResponse JointPositionControllerServer::handle_goal(
+    const rclcpp_action::GoalUUID& /*uuid*/,
+    std::shared_ptr<const JointPosition::Goal> goal)
   {
-    // If the goal is outside the allowed range, reject it.
+    if(!std::isfinite(goal->position))
+    {
+      RCLCPP_WARN(action_server_logger_, "Rejecting goal because its position is not finite.");
+      return rclcpp_action::GoalResponse::REJECT;
+    }
+
+    // Reject targets outside the configured hard limits before reserving the single-goal slot.
+    // The backend command topic should never receive positions outside this package boundary.
     if(goal->position < lower_limit_ || goal->position > upper_limit_)
     {
       RCLCPP_WARN(action_server_logger_,
@@ -398,10 +429,8 @@ namespace joint_position_controller_server
     {
       std::lock_guard<std::mutex> lock(mutex_);
 
-      // If there is already an active goal, reject the new one.
-      // This ensures only one goal is active at a time.
-      // To accept a new goal, the client must first cancel the active one, which triggers the execute() thread to
-      // terminate and
+      // Reject concurrent goals because this server owns only one backend command stream.
+      // A client must wait for the active goal to terminate before submitting another one.
       if(has_active_goal_)
       {
         RCLCPP_WARN(action_server_logger_,
@@ -410,8 +439,8 @@ namespace joint_position_controller_server
         return rclcpp_action::GoalResponse::REJECT;
       }
 
-      // If the current position is not valid or the latest JointState is too old, reject the goal
-      // to avoid executing it.
+      // Refuse to start without a fresh measurement. Otherwise the first command could be sent
+      // while the node has no evidence that the backend joint exists or is reporting valid data.
       if(!current_pos_is_valid_ || (this->now() - last_joint_state_time_).seconds() > joint_state_timeout_)
       {
         RCLCPP_WARN(action_server_logger_,
@@ -420,8 +449,9 @@ namespace joint_position_controller_server
         return rclcpp_action::GoalResponse::REJECT;
       }
 
-      // If here, there is no active goal, the current position is valid, and the latest
-      // JointState is not obsolete, therefore, accept the goal.
+      // From this point until execute() clears the flag, the server owns the only accepted goal.
+      // Reserve the slot in handle_goal(), not handle_accepted(), because ROS 2 calls those
+      // callbacks separately and a second request could otherwise arrive between them.
 
       has_active_goal_ = true;
     }
@@ -438,29 +468,26 @@ namespace joint_position_controller_server
     // Find the needed joint in the JointState message by name.
     const auto joint_it = std::find(msg->name.begin(), msg->name.end(), joint_name_);
 
-    // If the joint is not found, mark the current position as invalid and warn.
+    // Ignore JointState messages for other joints.
+    // The stale-state timeout detects when this joint stops receiving its own measurements.
     if(joint_it == msg->name.end())
     {
-      std::lock_guard<std::mutex> lock(mutex_);
-      current_pos_          = std::numeric_limits<double>::quiet_NaN();
-      current_pos_is_valid_ = false;
-
       RCLCPP_WARN_THROTTLE(joint_state_logger_,
                            *this->get_clock(),
                            1000,
-                           "Joint '%s' not found in JointState message.",
+                           "Ignoring JointState message without joint '%s'.",
                            joint_name_.c_str());
       return;
     }
 
-    // Transform the iterator into an index to access the corresponding position entry.
-    // If the index is out of bounds for the position vector, mark the current position as invalid and warn.
+    // Convert the name iterator to the index of its matching position entry.
+    // A missing position makes this JointState invalid for the configured joint.
     const auto joint_index = static_cast<std::size_t>(std::distance(msg->name.begin(), joint_it));
 
     if(joint_index >= msg->position.size())
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      current_pos_          = std::numeric_limits<double>::quiet_NaN();
+      current_pos_ = std::numeric_limits<double>::quiet_NaN();
       current_pos_is_valid_ = false;
 
       RCLCPP_WARN_THROTTLE(joint_state_logger_,
@@ -471,12 +498,27 @@ namespace joint_position_controller_server
       return;
     }
 
-    // Update the current position with the received value under the mutex to ensure thread safety
-    // with the execute() thread.
+    const double position = msg->position[joint_index];
+
+    if(!std::isfinite(position))
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      current_pos_           = msg->position[joint_index];
-      current_pos_is_valid_  = true;
+      current_pos_ = std::numeric_limits<double>::quiet_NaN();
+      current_pos_is_valid_ = false;
+
+      RCLCPP_WARN_THROTTLE(joint_state_logger_,
+                           *this->get_clock(),
+                           1000,
+                           "Joint '%s' has a non-finite position in the JointState message.",
+                           joint_name_.c_str());
+      return;
+    }
+
+    // Update the current position under the mutex so the execution thread reads consistent data.
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      current_pos_ = position;
+      current_pos_is_valid_ = true;
       last_joint_state_time_ = this->now();
     }
   }
@@ -486,17 +528,15 @@ namespace joint_position_controller_server
 
   void JointPositionControllerServer::publish_pos_cmd(double position)
   {
-    // If posicion is not defined, do not publish it and warn.
-    if(std::isnan(position))
+    // NaN is the internal sentinel for "no command to publish". Keeping that sentinel inside this
+    // helper makes all callers safe, including the periodic timer during startup and idle states.
+    if(!std::isfinite(position))
     {
       return;
     }
 
-    // The command is expressed in meters. Round it to 0.001 m before publishing it.
-    const double rounded_pos_cmd = std::round(position * 1000.0) / 1000.0;
-
     std_msgs::msg::Float64 command_msg;
-    command_msg.data = rounded_pos_cmd;
+    command_msg.data = position;
     command_pub_->publish(command_msg);
   }
 }  // namespace joint_position_controller_server
